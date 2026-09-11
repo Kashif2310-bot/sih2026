@@ -56,6 +56,23 @@ export function ScanPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLocalErr(null)
+    // These three mirror what the removed native `required`/`min`/`max`
+    // attributes used to silently enforce with an unstyled browser tooltip
+    // (the same failure class as the margin-field bug: form has noValidate
+    // so the app's own bilingual role=alert message must be authoritative
+    // for every field, not just margin).
+    if (!form.name.trim()) {
+      setLocalErr(kn ? 'ಪೂರ್ಣ ಹೆಸರು ಅಗತ್ಯ' : 'Full name is required')
+      return
+    }
+    if (!Number.isFinite(form.age) || form.age < 18 || form.age > 70) {
+      setLocalErr(kn ? 'ವಯಸ್ಸು 18 ಮತ್ತು 70 ರ ನಡುವೆ ಇರಬೇಕು' : 'Age must be between 18 and 70')
+      return
+    }
+    if (!Number.isFinite(form.experienceYears) || form.experienceYears < 0) {
+      setLocalErr(kn ? 'ಅನುಭವದ ವರ್ಷಗಳು ಋಣಾತ್ಮಕವಾಗಿರಬಾರದು' : 'Years of experience cannot be negative')
+      return
+    }
     if (form.availableMargin <= 0) {
       setLocalErr(kn ? 'ಮಾರ್ಜಿನ್ ಧನಾತ್ಮಕವಾಗಿರಬೇಕು' : 'Margin capital must be positive')
       return

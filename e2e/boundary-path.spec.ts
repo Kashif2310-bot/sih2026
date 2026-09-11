@@ -65,3 +65,48 @@ test('at Rs 50L project cost exactly, still structures a Term Loan (not rejected
   await expect(page.getByText(/45,00,000/).first()).toBeVisible()
   await expect(page.getByText(/Term Loan Scheme/i).first()).toBeVisible()
 })
+
+/**
+ * Regression tests for the "native validation silently defeats the app's own
+ * error UI" bug class. The /scan form has noValidate (added when the margin
+ * field's min/max were found blocking submission before the app's own
+ * role=alert message could run) — these confirm every other field that used
+ * to rely on a native min/max/required still gets a real, visible,
+ * bilingual-capable app error instead of silently submitting unvalidated.
+ */
+test.describe('form-validation regression: noValidate never means "no validation"', () => {
+  test('rejects an empty full name with a clear message and does not proceed', async ({ page }) => {
+    await page.goto('/scan')
+    await fillBaseForm(page)
+    await page.getByLabel('Full name').fill('')
+    await page.getByLabel('Available margin capital (₹)').fill('100000')
+    await page.getByRole('button', { name: 'Run hyperlocal scan' }).click()
+    await expect(page.locator('[role=alert]')).toBeVisible()
+    await expect(page.locator('[role=alert]')).toHaveText(/name/i)
+    await expect(page).toHaveURL(/\/scan/)
+  })
+
+  test('rejects an out-of-range age with a clear message and does not proceed', async ({ page }) => {
+    await page.goto('/scan')
+    await fillBaseForm(page)
+    await page.getByLabel('Age', { exact: true }).fill('15')
+    await page.getByLabel('Available margin capital (₹)').fill('100000')
+    await page.getByRole('button', { name: 'Run hyperlocal scan' }).click()
+    await expect(page.locator('[role=alert]')).toBeVisible()
+    await expect(page.locator('[role=alert]')).toHaveText(/age/i)
+    await expect(page).toHaveURL(/\/scan/)
+  })
+
+  test('rejects negative years of experience with a clear message and does not proceed', async ({
+    page,
+  }) => {
+    await page.goto('/scan')
+    await fillBaseForm(page)
+    await page.getByLabel('Years of experience').fill('-3')
+    await page.getByLabel('Available margin capital (₹)').fill('100000')
+    await page.getByRole('button', { name: 'Run hyperlocal scan' }).click()
+    await expect(page.locator('[role=alert]')).toBeVisible()
+    await expect(page.locator('[role=alert]')).toHaveText(/experience/i)
+    await expect(page).toHaveURL(/\/scan/)
+  })
+})

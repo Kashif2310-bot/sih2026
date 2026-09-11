@@ -180,3 +180,15 @@ Two changes:
 
 **Verified this didn't break real signing:** re-ran the full test suite (`npm test` 37/37) and the full Playwright suite (5/5, including the demo-path spec which signs with 5 real ECDSA verifier wallets and releases the simulated escrow) after both changes. The deferred-import refactor is a loading-time change only — `signAttestation`/`verifySignature` still do real secp256k1 ECDSA via the same `ethers.Wallet`/`verifyMessage` calls as before, just imported lazily.
 
+## Step 3 — sweep every form field for the same "native validation defeats custom UI" bug class
+
+**Scope check first:** `grep -rn "<form" src` — `ScanPage.tsx` is the *only* `<form>` element in the entire app (every other route is read-only display/sign/print, no inputs to validate). So the sweep is scoped to that one form's fields.
+
+**What I found:** the `noValidate` fix from the prior round's item 8 (added to stop the margin field's native `min`/`max` from silently blocking the app's own rejection message) disables *all* native HTML validation on the form — not just margin's. That silently created a **new** gap for three other fields that used to be enforced by native attributes with no custom JS backing them: `name` (`required`), `age` (`min={18} max={70}`), and `experienceYears` (`min={0}`) could now be submitted empty/out-of-range/negative with **zero** validation, native or custom — a regression I introduced myself last round and had not re-checked until this explicit sweep.
+
+**Fix:** added three checks to `ScanPage.tsx`'s `onSubmit`, in the same style as the existing margin checks (bilingual, sets `localErr` which renders as the existing `role=alert` element): empty/whitespace-only name, age outside 18–70, negative experience years. The `min`/`max`/`required` JSX attributes are left in place as semantic hints (screen readers still announce "required"; number-input spinner arrows still respect min/max) but `noValidate` means they can never again silently block submission without the app's own message showing.
+
+**Regression tests added** (`e2e/boundary-path.spec.ts`, new `describe` block): empty name, age=15, experience=-3 — each asserts a visible `role=alert` containing the relevant word and that the page stays on `/scan`. Caught one test-authoring bug while writing these: Playwright's `getByLabel('Age')` substring-matched "Choose a seeded **vill*age***" (the word "village" literally contains "age") — fixed with `{ exact: true }`, not an app bug.
+
+**Verified:** all 7 `boundary-path.spec.ts` tests pass (4 from before + 3 new), full `npm test` 37/37, demo-path spec still passes, `npm run build` still clean with no new warnings.
+
