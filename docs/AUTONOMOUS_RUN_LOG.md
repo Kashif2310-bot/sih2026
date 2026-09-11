@@ -85,5 +85,23 @@ Commit: (log-only, folded into next commit)
 
 **Verified:** `npm run build` clean, `npm test` 26/26. Manual Playwright walkthrough of the full Scan→Pulse→Report→Finance→Sanction→Export flow dumped the rendered `/export` page text — confirmed every section present with correct numbers (₹10,00,000 project / ₹9,00,000 loan, full 28-quarter schedule closing to ₹0.00, LokScore breakdown, 10-item document checklist). Caught and fixed one bug during this check: the working-capital total field was mislabeled with the "Hyperlocal Feasibility Report" page title (copy-paste error) — added a proper `finance.wcTotal` key in EN/KN and fixed it. Re-ran the demo-path spec afterward — still passes.
 
+Commit: `be1ba23`
+
+---
+
+## 2026-09-12 03:44 — Item 7: polish pass (reduced motion, ARIA, 360px mobile)
+
+**What I checked and found already fine (no changes made):**
+- Loading/error/empty states for network calls: weather-unavailable, mandi-unavailable, and competitor/Overpass-unavailable states were all already handled honestly (from Phase 1 / item 3 work) — verified again here rather than re-doing.
+- Keyboard navigation: all interactive elements are native `<button>`/`<input>`/`<select>`/`<a>` — keyboard-reachable by default. Checked every `outline-none` usage in the codebase pairs with a `focus:ring-*` replacement (grepped for `outline-none` not followed by a focus ring — zero matches), so keyboard focus is never silently removed.
+- 360px viewport: wrote a throwaway Playwright check that walks all 7 routes (/, /scan, /pulse, /report, /finance, /sanction, /export) at a 360×800 viewport and compares `document.documentElement.scrollWidth` to `clientWidth` — zero horizontal page overflow on any route. Manually screenshotted /scan, /pulse, /report, /finance at 360px: the finance repayment-schedule table and the map extend past their card edges, but both are inside their own `overflow-auto`/map containers (intentional internal scroll, not page-level overflow) — left as-is, this is a reasonable mobile pattern for a 5-column data table and didn't want to redesign a working table under time pressure. (The vertically-duplicated header seen partway down the report/finance full-page screenshots is a known Playwright/Chromium artifact of capturing `position: sticky` elements during full-page scroll-stitching, not a real rendering bug — confirmed the live page only ever shows one header at a time.)
+
+**What I fixed:**
+- `LandingPage.tsx` was the only file using framer-motion (fade/slide/scale-in on page load) and didn't respect `prefers-reduced-motion`. Wrapped it in `<MotionConfig reducedMotion="user">`, framer-motion's built-in switch that disables transform/scale animations (keeping simple opacity fades) for users with the OS-level reduced-motion preference set.
+- `/sanction`'s five verifier "Sign as verifier" buttons all had the identical accessible name, so a screen-reader user tabbing through them couldn't tell which verifier a given button was for. Added `aria-label` combining the action with the verifier's name (e.g. "Sign as verifier — Priya Hegde").
+- Found and fixed a real mobile bug while screenshotting: the new LokScore radar chart (item 4) clipped its "Comp. gap" axis label against the card edge at 360px width (`outerRadius="75%"` left no margin). Reduced to `62%` and added explicit chart margins.
+
+**Verified:** `npm run build` clean, `npm test` 26/26, demo-path spec still passes (the new aria-label on sign buttons is a superset match so Playwright's substring name matching still finds "Sign as verifier"). Re-screenshotted /pulse after the radar fix — label no longer clipped.
+
 Commit: `pending`
 

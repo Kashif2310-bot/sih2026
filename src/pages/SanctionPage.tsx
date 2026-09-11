@@ -136,6 +136,7 @@ export function SanctionPage() {
                   type="button"
                   disabled={!!busy}
                   onClick={() => void onSign(v.id)}
+                  aria-label={`${t('sanction.sign')} — ${kn ? v.nameKn : v.name}`}
                   className="mt-3 rounded-full bg-forest px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                 >
                   {busy === v.id ? '…' : t('sanction.sign')}

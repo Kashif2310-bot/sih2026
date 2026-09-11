@@ -216,7 +216,11 @@ export function PulsePage() {
         <div className="mt-3 grid gap-4 md:grid-cols-2">
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={componentDefs} outerRadius="75%">
+              <RadarChart
+                data={componentDefs}
+                outerRadius="62%"
+                margin={{ top: 16, right: 28, bottom: 16, left: 28 }}
+              >
                 <PolarGrid stroke="#0b3d2e22" />
                 <PolarAngleAxis
                   dataKey="label"
