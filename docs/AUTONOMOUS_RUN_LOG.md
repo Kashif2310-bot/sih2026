@@ -209,3 +209,22 @@ Two changes:
 
 **Verified:** `npm run build` clean, `npm test` 37/37, full Playwright suite (demo-path + 7 boundary-path tests) 8/8 pass after the i18n fixes.
 
+## Step 5 — merge
+
+Steps 1–4 all passed clean. Final pre-merge check on the branch tip (`0287d81`, 12 commits ahead of `main`): clean tree, `npm run build` clean, `npm test` 37/37, full Playwright suite (8 tests: demo-path + 7 boundary-path) 8/8. Merged with a real merge commit (`git merge --no-ff`, not squashed — full 12-commit history preserved) into `main`. Merge commit: `f5f7eeb`.
+
+## Step 6 — presentation documentation
+
+- **`README.md`** rewritten: what this is, a table of the exact NSFDC figures implemented (sourced directly from `config.ts`'s `NSFDC`/`LOKSCORE_WEIGHTS`/`QUORUM_THRESHOLDS` objects, not retyped from memory), how to run/build/test/e2e, the demo path and its expected numbers, a live-vs-simulated summary, and pointers to `PRESENTATION_NOTES.md` and `MASTER_SPEC.md`.
+- **New `docs/PRESENTATION_NOTES.md`**: genuinely-live list (Open-Meteo, Nominatim, Overpass, real ECDSA), clearly-simulated list (escrow release, demo verifier wallets, the indicative document checklist — each with the exact on-screen disclaimer text quoted), and a deferred list with reasons (Hindi — time; post-disbursement monitoring — separate roadmap phase; native Kannada review — pending; no backend/auth — deliberate scope boundary). Left a `TODO — team fills in` section for *why the real-signature/adaptive-quorum approach differs from the original idea-round pitch* — I have no visibility into what was actually pitched or decided in that round, so inventing a rationale there would be presenting a guess as fact to a judge; explicitly flagged instead of filled in.
+
+## Step 7 — deployment prep (no actual deploy)
+
+Added `vercel.json` (build command, output dir, a catch-all rewrite to `index.html`) and `netlify.toml` (build command, publish dir, a catch-all redirect to `index.html`) — both needed because this is a client-side-routed SPA (`react-router`'s `BrowserRouter`): a bare static host serves files by exact path and will 404 on a direct hit to e.g. `/scan` or `/export` without an explicit rewrite rule. Verified the *reason* these are needed locally: `vite preview` on the built `dist/` does its own SPA fallback (confirmed `/scan` and `/export` both return the real `index.html` with `200`, not a 404, when hit directly) — but that fallback is a `vite preview`-only convenience, not something a plain static host does on its own, which is exactly the gap `vercel.json`/`netlify.toml` close.
+
+**One-command deploy step for whoever has host access** (not run — no login available here):
+- Vercel: `npx vercel --prod` from the repo root (first run will ask you to link/create a project; `vercel.json` handles the rest).
+- Netlify: `npx netlify deploy --prod --build` from the repo root (first run will ask you to link/create a site; `netlify.toml` handles the rest).
+
+Both commands build (`npm run build`) and publish `dist/` as configured in the respective config file.
+
