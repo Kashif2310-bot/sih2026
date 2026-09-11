@@ -1,7 +1,15 @@
 /**
  * NSFDC Micro Finance & Term Loan — SIH26091.
- * All internal money math is integer **paise** (Rule 1).
+ * All internal money math is integer **paise** (1 rupee = 100 paise).
  * Display converts paise → rupees only at the edge.
+ *
+ * Reducing-balance quarterly annuity EMI:
+ *   r = annual_rate / 4 / 100
+ *   n = tenure_years × 4 − moratorium_quarters
+ *   EMI = P × r × (1+r)^n / ((1+r)^n − 1)
+ *
+ * Compounding uses integer tenths-of-a-percent over denominator 4000
+ * (r = annualRate/400 = tenths/4000) so (1+r)^n is exact BigInt rational math.
  */
 
 import { MORATORIUM_INTEREST_POLICY, NSFDC } from './config'
@@ -11,6 +19,9 @@ export const TERM_CAP = NSFDC.termProjectCapRupees
 export const MARGIN_RATIO = NSFDC.marginRatio
 export const LOAN_RATIO = NSFDC.loanRatio
 export { MORATORIUM_INTEREST_POLICY }
+
+/** Rate scale: quarterly r = annualPercent / 400 = tenths / RATE_DENOM. */
+const RATE_DENOM = 4000
 
 export type SchemeId = 'micro_finance' | 'term_loan' | 'over_limit' | 'under_margin'
 
@@ -34,12 +45,14 @@ export interface SchemePlan {
     total: number
     status: 'moratorium' | 'repayment'
   }>
-  /** @deprecated use workingCapital module — kept for LokScore opsCostMonthly coupling */
+  /** @deprecated UI uses workingCapital module; kept for opsCostMonthly coupling */
   workingCapitalHint: number
   opsCostMonthly: number
   moratoriumPolicy: typeof MORATORIUM_INTEREST_POLICY
   /** Remaining principal after full schedule (must be 0 for in-scope schemes). */
   closingPrincipalPaise: number
+  /** Principal after moratorium interest is capitalised (paise). */
+  capitalizedPrincipalPaise: number
 }
 
 export function toPaise(rupees: number): number {
@@ -50,9 +63,44 @@ export function fromPaise(paise: number): number {
   return paise / 100
 }
 
-function interestPaise(balancePaise: number, annualRate: number): number {
-  // quarterly rate on paise, round to nearest paise
-  return Math.round((balancePaise * annualRate) / 100 / 4)
+function rateTenths(annualRatePercent: number): number {
+  return Math.round(annualRatePercent * 10)
+}
+
+/** Quarterly interest on a paise balance, nearest paise. */
+export function quarterlyInterestPaise(balancePaise: number, annualRatePercent: number): number {
+  const tenths = rateTenths(annualRatePercent)
+  return Math.floor((balancePaise * tenths + RATE_DENOM / 2) / RATE_DENOM)
+}
+
+/**
+ * Standard annuity EMI in paise.
+ * EMI = P * r * (1+r)^n / ((1+r)^n - 1) with r = tenths/RATE_DENOM.
+ */
+export function annuityEmiPaise(
+  principalPaise: number,
+  annualRatePercent: number,
+  n: number,
+): number {
+  if (n <= 0 || principalPaise <= 0) return 0
+  const tenths = BigInt(rateTenths(annualRatePercent))
+  const d = BigInt(RATE_DENOM)
+  const b = d + tenths
+  let powB = 1n
+  let powD = 1n
+  for (let i = 0; i < n; i++) {
+    powB *= b
+    powD *= d
+  }
+  const P = BigInt(principalPaise)
+  const num = P * tenths * powB
+  const den = d * (powB - powD)
+  return Number((num + den / 2n) / den)
+}
+
+function ninetyPercentPaise(projectPaise: number): number {
+  // Integer 90% — avoid float (project × 0.9).
+  return Math.floor((projectPaise * 9) / 10)
 }
 
 export function buildSchemePlan(availableMarginRupees: number, startDate = new Date()): SchemePlan {
@@ -60,9 +108,10 @@ export function buildSchemePlan(availableMarginRupees: number, startDate = new D
     return emptyPlan('under_margin', 0, 0, availableMarginRupees || 0)
   }
 
+  // project = margin ÷ 10% ⇒ ×10; round at paise of the *project*, not margin×10 after rounding.
+  const projectPaise = Math.round(availableMarginRupees * 10 * 100)
   const marginPaise = toPaise(availableMarginRupees)
-  const projectPaise = marginPaise * 10 // ÷ 10% ⇒ ×10
-  const rawLoanPaise = Math.round(projectPaise * NSFDC.loanRatio)
+  const rawLoanPaise = ninetyPercentPaise(projectPaise)
   const projectCost = fromPaise(projectPaise)
 
   if (projectPaise <= toPaise(NSFDC.microProjectCapRupees)) {
@@ -113,12 +162,12 @@ function emptyPlan(
   const names =
     schemeId === 'over_limit'
       ? {
-          schemeName: `Above NSFDC Term Loan Cap (₹50L). Max margin capital ₹${NSFDC.maxMarginRupees.toLocaleString('en-IN')}.`,
-          schemeNameKn: `ಎನ್‌ಎಸ್‌ಎಫ್‌ಡಿಸಿ ಮಿತಿ ಮೀರಿದೆ (₹50 ಲಕ್ಷ). ಗರಿಷ್ಠ ಮಾರ್ಜಿನ್ ₹${NSFDC.maxMarginRupees.toLocaleString('en-IN')}.`,
+          schemeName: `Above NSFDC Term Loan Cap (₹50L). Max supported margin capital is ₹${NSFDC.maxMarginRupees.toLocaleString('en-IN')}.`,
+          schemeNameKn: `ಎನ್‌ಎಸ್‌ಎಫ್‌ಡಿಸಿ ಮಿತಿ ಮೀರಿದೆ (₹50 ಲಕ್ಷ). ಗರಿಷ್ಠ ಬೆಂಬಲಿತ ಮಾರ್ಜಿನ್ ₹${NSFDC.maxMarginRupees.toLocaleString('en-IN')}.`,
         }
       : {
-          schemeName: 'Enter a positive margin capital to unlock schemes',
-          schemeNameKn: 'ಯೋಜನೆಗಳಿಗೆ ಧನಾತ್ಮಕ ಮಾರ್ಜಿನ್ ಬಂಡವಾಳ ನಮೂದಿಸಿ',
+          schemeName: 'Margin capital of 0 or empty is not allowed — enter a positive amount (do not divide by zero).',
+          schemeNameKn: 'ಮಾರ್ಜಿನ್ 0 ಅಥವಾ ಖಾಲಿ ಅಮಾನ್ಯ — ಧನಾತ್ಮಕ ಮೊತ್ತ ನಮೂದಿಸಿ (ಶೂನ್ಯದಿಂದ ಭಾಗಿಸಲಾಗುವುದಿಲ್ಲ).',
         }
   return {
     schemeId,
@@ -136,6 +185,7 @@ function emptyPlan(
     opsCostMonthly: 0,
     moratoriumPolicy: MORATORIUM_INTEREST_POLICY,
     closingPrincipalPaise: 0,
+    capitalizedPrincipalPaise: 0,
   }
 }
 
@@ -157,13 +207,8 @@ function computePlan(input: {
   const moratoriumQuarters = input.moratoriumMonths / 3
   const repaymentQuarters = totalQuarters - moratoriumQuarters
 
-  // Equal principal in paise; final repayment quarter absorbs residue (Rule 3).
-  const basePrincipal = Math.floor(input.loanPaise / repaymentQuarters)
-  let allocated = 0
-
   let remaining = input.loanPaise
   const schedule: SchemePlan['schedule'] = []
-  let repayIndex = 0
 
   for (let q = 1; q <= totalQuarters; q++) {
     const due = new Date(input.startDate)
@@ -171,31 +216,52 @@ function computePlan(input: {
     const dueDateLabel = due.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
 
     if (q <= moratoriumQuarters) {
-      const interest = interestPaise(remaining, input.interestRate)
+      const interest = quarterlyInterestPaise(remaining, input.interestRate)
+      remaining += interest
       schedule.push({
         quarter: q,
         dueDateLabel,
         principal: fromPaise(0),
         interest: fromPaise(interest),
-        total: fromPaise(interest),
+        total: fromPaise(0),
         status: 'moratorium',
       })
     } else {
-      repayIndex += 1
-      const interest = interestPaise(remaining, input.interestRate)
-      const isLast = repayIndex === repaymentQuarters
-      const principalPaise = isLast ? remaining : Math.min(basePrincipal, remaining)
-      if (!isLast) allocated += principalPaise
-      remaining -= principalPaise
-      schedule.push({
-        quarter: q,
-        dueDateLabel,
-        principal: fromPaise(principalPaise),
-        interest: fromPaise(interest),
-        total: fromPaise(principalPaise + interest),
-        status: 'repayment',
-      })
+      break
     }
+  }
+
+  const capitalizedPrincipalPaise = remaining
+  const emiPaise = annuityEmiPaise(capitalizedPrincipalPaise, input.interestRate, repaymentQuarters)
+  let repayIndex = 0
+
+  for (let q = moratoriumQuarters + 1; q <= totalQuarters; q++) {
+    const due = new Date(input.startDate)
+    due.setMonth(due.getMonth() + q * 3)
+    const dueDateLabel = due.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+
+    repayIndex += 1
+    const interest = quarterlyInterestPaise(remaining, input.interestRate)
+    const isLast = repayIndex === repaymentQuarters
+    let principalPaise: number
+    let totalPaise: number
+    if (isLast) {
+      principalPaise = remaining
+      totalPaise = remaining + interest
+      remaining = 0
+    } else {
+      totalPaise = emiPaise
+      principalPaise = Math.min(Math.max(emiPaise - interest, 0), remaining)
+      remaining -= principalPaise
+    }
+    schedule.push({
+      quarter: q,
+      dueDateLabel,
+      principal: fromPaise(principalPaise),
+      interest: fromPaise(interest),
+      total: fromPaise(totalPaise),
+      status: 'repayment',
+    })
   }
 
   const firstRepay = schedule.find((s) => s.status === 'repayment')
@@ -216,6 +282,7 @@ function computePlan(input: {
     opsCostMonthly: fromPaise(input.opsCostMonthlyPaise),
     moratoriumPolicy: MORATORIUM_INTEREST_POLICY,
     closingPrincipalPaise: remaining,
+    capitalizedPrincipalPaise,
   }
 }
 

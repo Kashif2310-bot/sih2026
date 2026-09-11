@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 import { CloudRain, Store, Users, ArrowRight } from 'lucide-react'
 import { useApp } from '../state/useApp'
-import { VILLAGES, BUSINESS_META } from '../data/villages'
+import { BUSINESS_META } from '../data/villages'
 import { getUpcomingEvents } from '../data/festivals'
 import { VillageMap } from '../components/VillageMap'
 import { format } from 'date-fns'
@@ -20,14 +20,14 @@ import { format } from 'date-fns'
 export function PulsePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, weather, week, mandi, score, loading } = useApp()
+  const { profile, location, weather, week, mandi, score, loading } = useApp()
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
 
   if (!profile && !loading) return <Navigate to="/scan" replace />
-  if (!profile || !weather || !score || !mandi) {
+  if (!profile || !weather || !score || !location) {
     return (
       <div className="glass rounded-2xl p-8 text-center text-ink/60">
         {kn ? 'ಸ್ಕ್ಯಾನ್ ಚಾಲನೆಯಲ್ಲಿದೆ…' : 'Running hyperlocal scan…'}
@@ -35,8 +35,10 @@ export function PulsePage() {
     )
   }
 
-  const village = VILLAGES.find((v) => v.id === profile.villageId)!
-  const events = getUpcomingEvents(village.id)
+  const events = location.hasCuratedSignals ? getUpcomingEvents(location.id) : []
+  const placeName = kn ? location.nameKn : location.name
+  const placeDistrict = kn ? location.districtKn : location.district
+  const weatherUnavailable = weather.source === 'unavailable'
   const chartData = week.map((d) => ({
     day: format(new Date(d.date), 'EEE'),
     max: d.max,
@@ -48,7 +50,7 @@ export function PulsePage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-sky">
-            {kn ? village.nameKn : village.name} · {kn ? village.districtKn : village.district}
+            {placeName} · {placeDistrict}
           </p>
           <h1 className="font-display text-3xl font-bold text-forest">{t('pulse.title')}</h1>
           <p className="mt-1 text-sm text-ink/60">
@@ -65,11 +67,21 @@ export function PulsePage() {
             <Users className="h-4 w-4" /> {t('pulse.radius')}
           </div>
           <div className="h-64 overflow-hidden rounded-xl">
-            <VillageMap lat={village.lat} lng={village.lng} name={kn ? village.nameKn : village.name} />
+            <VillageMap
+              lat={location.lat}
+              lng={location.lng}
+              name={placeName}
+              radiusKm={location.radiusKm}
+              competitors={location.competitors}
+            />
           </div>
           <p className="mt-3 text-sm text-ink/70">
-            {kn ? village.notesKn : village.notes} · ~{(village.households * 1.8 + village.population * 0.35).toFixed(0)}{' '}
-            {kn ? 'ಗ್ರಾಹಕ ವ್ಯಾಪ್ತಿ' : 'est. consumers in ring'}
+            {kn ? location.notesKn : location.notes}
+            {location.households != null && location.population != null
+              ? ` · ~${(location.households * 1.8 + location.population * 0.35).toFixed(0)} ${
+                  kn ? 'ಗ್ರಾಹಕ ವ್ಯಾಪ್ತಿ' : 'est. consumers in ring'
+                }`
+              : ''}
           </p>
         </div>
 
@@ -78,14 +90,23 @@ export function PulsePage() {
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-forest">
               <CloudRain className="h-4 w-4" /> {t('pulse.weather')}
             </div>
-            <p className="text-2xl font-bold text-ink">
-              {Math.round(weather.tempMax)}° / {Math.round(weather.tempMin)}°
-            </p>
-            <p className="text-sm text-ink/65">{kn ? weather.summaryKn : weather.summary}</p>
-            <p className="mt-1 text-xs text-sky">
-              {kn ? 'ಮಳೆ ಸಂಭವ' : 'Rain chance'} {weather.precipProb}% · {weather.precipMm} mm
-            </p>
-            {chartData.length > 0 && (
+            {weatherUnavailable ? (
+              <>
+                <p className="text-lg font-bold text-ink">{kn ? weather.summaryKn : weather.summary}</p>
+                <p className="mt-1 text-sm text-ink/65">{t('pulse.weatherUnavailable')}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-ink">
+                  {Math.round(weather.tempMax)}° / {Math.round(weather.tempMin)}°
+                </p>
+                <p className="text-sm text-ink/65">{kn ? weather.summaryKn : weather.summary}</p>
+                <p className="mt-1 text-xs text-sky">
+                  {kn ? 'ಮಳೆ ಸಂಭವ' : 'Rain chance'} {weather.precipProb}% · {weather.precipMm} mm
+                </p>
+              </>
+            )}
+            {chartData.length > 0 && !weatherUnavailable && (
               <div className="mt-4 h-28">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
@@ -104,17 +125,23 @@ export function PulsePage() {
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-forest">
               <Store className="h-4 w-4" /> {t('pulse.mandi')}
             </div>
-            <p className="text-lg font-bold">
-              {mandi.commodity} · {mandi.modalPrice} {mandi.unit}
-            </p>
-            <p className="text-xs text-ink/55">{mandi.market}</p>
-            <p
-              className={`mt-2 text-sm font-semibold ${
-                mandi.trend === 'up' ? 'text-leaf' : mandi.trend === 'down' ? 'text-danger' : 'text-ink/60'
-              }`}
-            >
-              {mandi.trend === 'up' ? '▲' : mandi.trend === 'down' ? '▼' : '●'} {mandi.changePct}%
-            </p>
+            {mandi ? (
+              <>
+                <p className="text-lg font-bold">
+                  {mandi.commodity} · {mandi.modalPrice} {mandi.unit}
+                </p>
+                <p className="text-xs text-ink/55">{mandi.market}</p>
+                <p
+                  className={`mt-2 text-sm font-semibold ${
+                    mandi.trend === 'up' ? 'text-leaf' : mandi.trend === 'down' ? 'text-danger' : 'text-ink/60'
+                  }`}
+                >
+                  {mandi.trend === 'up' ? '▲' : mandi.trend === 'down' ? '▼' : '●'} {mandi.changePct}%
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-ink/65">{t('pulse.mandiUnavailable')}</p>
+            )}
           </div>
         </div>
       </div>

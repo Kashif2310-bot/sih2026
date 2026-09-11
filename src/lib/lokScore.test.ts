@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { VILLAGES } from '../data/villages'
 import { buildSchemePlan } from './finance'
+import { LOKSCORE_WEIGHTS, REACH_KM } from './config'
 import {
   computeLokScore,
   scoreEligibility,
@@ -8,6 +9,7 @@ import {
   type WeatherSignal,
 } from './lokScore'
 import { fetchMandiSignal } from './mandi'
+import { curatedLocationFromVillage } from './resolveLocation'
 
 const baseProfile = (): EntrepreneurProfile => ({
   name: 'Lakshmi S.',
@@ -19,6 +21,8 @@ const baseProfile = (): EntrepreneurProfile => ({
   villageId: 'dinka-mandya',
   category: 'dairy',
   availableMargin: 100_000,
+  locationMode: 'curated',
+  radiusKm: REACH_KM.default,
 })
 
 const fairWeather = (): WeatherSignal => ({
@@ -29,6 +33,7 @@ const fairWeather = (): WeatherSignal => ({
   code: 2,
   summary: 'Partly cloudy',
   summaryKn: 'ಭಾಗಶಃ ಮೋಡ',
+  source: 'live',
 })
 
 describe('scoreEligibility', () => {
@@ -41,12 +46,12 @@ describe('scoreEligibility', () => {
 
 describe('computeLokScore quorum', () => {
   it('returns breakdown components and quorum fields', async () => {
-    const village = VILLAGES[0]
+    const location = curatedLocationFromVillage(VILLAGES[0], REACH_KM.default)
     const plan = buildSchemePlan(100_000)
-    const mandi = await fetchMandiSignal(village, 'dairy')
+    const mandi = await fetchMandiSignal(location, 'dairy')
     const score = computeLokScore({
       profile: baseProfile(),
-      village,
+      location,
       weather: fairWeather(),
       mandi,
       plan,
@@ -60,17 +65,17 @@ describe('computeLokScore quorum', () => {
     expect(score.total).toBeLessThanOrEqual(100)
     expect(score.quorumRequired).toBeGreaterThanOrEqual(2)
     expect(score.quorumPool).toBeGreaterThanOrEqual(score.quorumRequired)
+    expect(score.weights).toEqual(LOKSCORE_WEIGHTS)
   })
 
   it('maps score ≥80 → 2-of-3 and ≥60 → 3-of-5 and <60 → 4-of-5+mentor', async () => {
-    const village = VILLAGES[0]
+    const location = curatedLocationFromVillage(VILLAGES[0], REACH_KM.default)
     const plan = buildSchemePlan(100_000)
-    const mandi = await fetchMandiSignal(village, 'dairy')
+    const mandi = await fetchMandiSignal(location, 'dairy')
 
-    // Strong profile typically lands high; we assert rule application via returned fields coherence
     const strong = computeLokScore({
       profile: baseProfile(),
-      village,
+      location,
       weather: fairWeather(),
       mandi,
       plan,
@@ -97,14 +102,33 @@ describe('computeLokScore quorum', () => {
         annualIncome: 900_000,
         availableMargin: 5_000,
       },
-      village,
+      location,
       weather: { ...fairWeather(), tempMax: 42, precipProb: 90 },
-      mandi: { ...mandi, trend: 'down', changePct: -8 },
+      mandi: mandi ? { ...mandi, trend: 'down', changePct: -8 } : null,
       plan: buildSchemePlan(5_000),
     })
     if (weak.total < 60) {
       expect(weak.mentorRequired).toBe(true)
       expect(weak.quorumRequired).toBe(4)
     }
+  })
+})
+
+describe('LOKSCORE_WEIGHTS', () => {
+  it('keeps locked 0.25/0.2/0.15/0.25/0.15 and sums to 1', () => {
+    expect(LOKSCORE_WEIGHTS).toEqual({
+      demand: 0.25,
+      competitionGap: 0.2,
+      weather: 0.15,
+      finance: 0.25,
+      eligibility: 0.15,
+    })
+    const sum =
+      LOKSCORE_WEIGHTS.demand +
+      LOKSCORE_WEIGHTS.competitionGap +
+      LOKSCORE_WEIGHTS.weather +
+      LOKSCORE_WEIGHTS.finance +
+      LOKSCORE_WEIGHTS.eligibility
+    expect(sum).toBe(1)
   })
 })

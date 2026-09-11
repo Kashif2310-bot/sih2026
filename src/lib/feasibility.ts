@@ -18,7 +18,6 @@ export function buildFeasibility(input: {
   const { profile, location, weather, mandi, plan, lang } = input
   const kn = lang === 'kn'
   const cat = profile.category
-  const meta = BUSINESS_META[cat]
   const density = location.competitorDensity[cat]
   const radiusKm = location.radiusKm
   const area = areaKm2(radiusKm)

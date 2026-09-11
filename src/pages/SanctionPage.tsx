@@ -45,6 +45,9 @@ export function SanctionPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-forest">{t('sanction.title')}</h1>
         <p className="mt-2 max-w-2xl text-sm text-ink/65">{t('sanction.subtitle')}</p>
+        <p className="mt-3 inline-block rounded-full border border-gold/40 bg-gold/20 px-3 py-1 text-xs font-semibold text-ink">
+          {t('sanction.fixtureIdentities')}
+        </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -109,6 +112,10 @@ export function SanctionPage() {
         </div>
       </div>
 
+      <p className="rounded-xl border border-gold/30 bg-[#fff7e8] px-4 py-2 text-xs font-semibold text-ink">
+        {t('sanction.fixtureIdentities')}
+      </p>
+
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {pool.map((v) => {
           const signed = signatures.find((s) => s.verifierId === v.id)
@@ -145,13 +152,9 @@ export function SanctionPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-xl font-bold text-forest">
-              {kn ? 'ಸ್ಮಾರ್ಟ್ ಕಾಂಟ್ರಾಕ್ಟ್ ಎಸ್ಕ್ರೋ' : 'Smart-contract escrow'}
+              {kn ? 'ಸಿಮ್ಯುಲೇಟೆಡ್ ಎಸ್ಕ್ರೋ ಸ್ಕೆಚ್' : 'Simulated escrow sketch'}
             </h2>
-            <p className="text-sm text-ink/60">
-              {kn
-                ? 'ಕೋರಂ ಪೂರ್ಣವಾದಾಗ ಮಾತ್ರ ಸಾಲ/ಸಬ್ಸಿಡಿ ಬಿಡುಗಡೆ ಪ್ಯಾಕೆಟ್ ಅನ್ಲಾಕ್.'
-                : 'Loan/subsidy release packet unlocks only after quorum.'}
-            </p>
+            <p className="text-sm text-ink/60">{t('sanction.escrowSketch')}</p>
           </div>
           {met ? (
             <button
@@ -161,11 +164,7 @@ export function SanctionPage() {
               className="inline-flex items-center gap-2 rounded-full bg-gold px-5 py-3 text-sm font-bold text-ink disabled:opacity-60"
             >
               <Sparkles className="h-4 w-4" />
-              {escrowReleased
-                ? kn
-                  ? 'ಎಸ್ಕ್ರೋ ಬಿಡುಗಡೆಯಾಯಿತು'
-                  : 'Escrow released'
-                : t('sanction.release')}
+              {escrowReleased ? t('sanction.released') : t('sanction.release')}
             </button>
           ) : (
             <span className="inline-flex items-center gap-2 rounded-full bg-mist px-4 py-2 text-sm font-semibold text-ink/60">
@@ -176,15 +175,11 @@ export function SanctionPage() {
 
         {escrowReleased && (
           <div className="mt-4 rounded-xl border border-leaf/30 bg-[#e8f6ee] p-4 text-sm text-forest">
-            <p className="font-bold">{kn ? 'DBT ಪ್ಯಾಕೆಟ್ ಸಿದ್ಧ' : 'DBT packet ready'}</p>
+            <p className="font-bold">{t('sanction.simulatedRelease')}</p>
             <p className="mt-1">
               {formatINR(plan.loanAmount)} → {profile.name} · attestation {attestation.reportHash.slice(0, 18)}…
             </p>
-            <p className="mt-2 text-xs">
-              {kn
-                ? 'ಉತ್ಪಾದನಾ ವ್ಯವಸ್ಥೆಯಲ್ಲಿ ಇದು SCA → ಫಲಾನುಭವಿ ಖಾತೆಗೆ ನಿಯಮಾಧೀನ ಬಿಡುಗಡೆ ಟ್ರಿಗರ್ ಮಾಡುತ್ತದೆ.'
-                : 'In production this triggers conditional SCA → beneficiary account release.'}
-            </p>
+            <p className="mt-2 text-xs">{t('sanction.escrowSketch')}</p>
           </div>
         )}
       </div>

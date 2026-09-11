@@ -43,7 +43,7 @@ test('demo path: Dinka dairy ₹1L margin → Term Loan ₹10L/₹9L → sanctio
     await page.waitForTimeout(150)
   }
 
-  await expect(page.getByRole('button', { name: /Release subsidy escrow|Escrow released/i })).toBeVisible({
+  await expect(page.getByRole('button', { name: /Simulate escrow release|Simulated release/i })).toBeVisible({
     timeout: 15_000,
   })
 })

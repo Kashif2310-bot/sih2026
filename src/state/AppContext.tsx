@@ -77,8 +77,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         w = unavailableWeather()
         wk = []
-        setError('Live weather unavailable — scores use an explicit unavailable weather signal (not fabricated).')
-        setErrorKn('ಲೈವ್ ಹವಾಮಾನ ಲಭ್ಯವಿಲ್ಲ — ಕಲ್ಪಿತ ಹವಾಮಾನ ಬಳಸಿಲ್ಲ.')
       }
 
       const m = await fetchMandiSignal(resolved, p.category)

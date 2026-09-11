@@ -2,22 +2,21 @@ import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight } from 'lucide-react'
 import { useApp } from '../state/useApp'
-import { VILLAGES } from '../data/villages'
 import { buildFeasibility } from '../lib/feasibility'
 
 export function ReportPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, weather, mandi, score } = useApp()
+  const { profile, location, weather, mandi, score, plan } = useApp()
 
-  if (!profile || !weather || !mandi || !score) return <Navigate to="/scan" replace />
+  if (!profile || !weather || !score || !location || !plan) return <Navigate to="/scan" replace />
 
-  const village = VILLAGES.find((v) => v.id === profile.villageId)!
   const report = buildFeasibility({
     profile,
-    village,
+    location,
     weather,
     mandi,
+    plan,
     lang: kn ? 'kn' : 'en',
   })
 
@@ -26,7 +25,7 @@ export function ReportPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-forest">{t('report.title')}</h1>
         <p className="mt-1 text-sm text-ink/60">
-          {kn ? village.nameKn : village.name} · LokScore {score.total} ({score.grade})
+          {kn ? location.nameKn : location.name} · LokScore {score.total} ({score.grade})
         </p>
       </div>
 
@@ -118,9 +117,11 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 
 function PriceChip({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div className={`flex-1 rounded-xl px-2 py-3 ${highlight ? 'bg-forest text-white' : 'bg-mist'}`}>
-      <p className={`text-[10px] uppercase ${highlight ? 'text-white/70' : 'text-ink/50'}`}>{label}</p>
-      <p className="font-bold">₹{value}</p>
+    <div
+      className={`flex-1 rounded-xl px-2 py-3 ${highlight ? 'bg-forest text-white' : 'bg-mist text-ink'}`}
+    >
+      <p className="text-[10px] uppercase tracking-wide opacity-70">{label}</p>
+      <p className="mt-1 font-display text-lg font-bold">₹{value}</p>
     </div>
   )
 }
@@ -139,19 +140,19 @@ function SwotGrid({
   kn: boolean
 }) {
   const cells = [
-    { title: kn ? 'ಶಕ್ತಿ' : 'Strengths', items: s, bg: 'bg-[#e8f6ee]' },
-    { title: kn ? 'ದುರ್ಬಲತೆ' : 'Weaknesses', items: w, bg: 'bg-[#fff7e8]' },
-    { title: kn ? 'ಅವಕಾಶ' : 'Opportunities', items: o, bg: 'bg-[#e8f1f8]' },
-    { title: kn ? 'ಅಪಾಯ' : 'Threats', items: t, bg: 'bg-[#ffece8]' },
-  ]
+    [kn ? 'ಬಲ' : 'S', s, 'bg-[#e8f6ee]'],
+    [kn ? 'ದುರ್ಬಲ' : 'W', w, 'bg-[#fff7e8]'],
+    [kn ? 'ಅವಕಾಶ' : 'O', o, 'bg-[#e8f1f8]'],
+    [kn ? 'ಅಪಾಯ' : 'T', t, 'bg-[#fff1ed]'],
+  ] as const
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      {cells.map((c) => (
-        <div key={c.title} className={`rounded-xl ${c.bg} p-3`}>
-          <p className="text-xs font-bold uppercase tracking-wide text-ink/55">{c.title}</p>
-          <ul className="mt-2 space-y-1 text-xs leading-relaxed text-ink/80">
-            {c.items.map((i) => (
-              <li key={i}>• {i}</li>
+      {cells.map(([label, items, bg]) => (
+        <div key={label} className={`rounded-xl ${bg} p-3`}>
+          <p className="text-xs font-bold text-ink/50">{label}</p>
+          <ul className="mt-1 space-y-1 text-xs text-ink/80">
+            {items.slice(0, 3).map((item) => (
+              <li key={item}>• {item}</li>
             ))}
           </ul>
         </div>

@@ -7,6 +7,7 @@ import {
   verifySignature,
 } from './multisig'
 import type { LokScoreBreakdown } from './lokScore'
+import { LOKSCORE_WEIGHTS } from './config'
 
 const score = (quorumRequired: number, quorumPool = 5): LokScoreBreakdown => ({
   demand: 70,
@@ -21,6 +22,7 @@ const score = (quorumRequired: number, quorumPool = 5): LokScoreBreakdown => ({
   mentorRequired: false,
   rationale: [],
   rationaleKn: [],
+  weights: LOKSCORE_WEIGHTS,
 })
 
 describe('multisig ECDSA', () => {
