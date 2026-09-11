@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Lock, Shield, Sparkles } from 'lucide-react'
+import { CheckCircle2, FileDown, Lock, Shield, Sparkles } from 'lucide-react'
 import { useApp } from '../state/useApp'
 import { formatINR } from '../lib/finance'
 import { quorumMet } from '../lib/multisig'
@@ -184,9 +184,17 @@ export function SanctionPage() {
         )}
       </div>
 
-      <Link to="/" className="text-sm font-semibold text-forest underline-offset-2 hover:underline">
-        {kn ? '← ಮುಖಪುಟಕ್ಕೆ' : '← Back to home'}
-      </Link>
+      <div className="flex flex-wrap items-center gap-4">
+        <Link
+          to="/export"
+          className="inline-flex items-center gap-2 rounded-full border border-forest/20 bg-white px-4 py-2 text-sm font-semibold text-forest"
+        >
+          <FileDown className="h-4 w-4" /> {t('nav.export')}
+        </Link>
+        <Link to="/" className="text-sm font-semibold text-forest underline-offset-2 hover:underline">
+          {kn ? '← ಮುಖಪುಟಕ್ಕೆ' : '← Back to home'}
+        </Link>
+      </div>
     </div>
   )
 }

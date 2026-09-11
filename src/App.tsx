@@ -6,6 +6,7 @@ import { PulsePage } from './pages/PulsePage'
 import { ReportPage } from './pages/ReportPage'
 import { FinancePage } from './pages/FinancePage'
 import { SanctionPage } from './pages/SanctionPage'
+import { ExportPage } from './pages/ExportPage'
 import { AppProvider } from './state/AppContext'
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/report" element={<ReportPage />} />
             <Route path="/finance" element={<FinancePage />} />
             <Route path="/sanction" element={<SanctionPage />} />
+            <Route path="/export" element={<ExportPage />} />
           </Routes>
         </Shell>
       </BrowserRouter>

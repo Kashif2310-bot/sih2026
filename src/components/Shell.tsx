@@ -18,11 +18,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { to: '/report', label: t('nav.report') },
     { to: '/finance', label: t('nav.finance') },
     { to: '/sanction', label: t('nav.sanction') },
+    { to: '/export', label: t('nav.export') },
   ]
 
   return (
     <div className={clsx('min-h-screen', kn && 'kn')}>
-      <header className="sticky top-0 z-40 border-b border-forest/10 bg-[#f7faf8]/85 backdrop-blur-md">
+      <header className="no-print sticky top-0 z-40 border-b border-forest/10 bg-[#f7faf8]/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link to="/" className="flex items-center gap-2 text-forest">
             <span className="relative grid h-9 w-9 place-items-center rounded-xl bg-forest text-gold">

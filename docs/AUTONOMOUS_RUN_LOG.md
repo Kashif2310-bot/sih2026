@@ -54,5 +54,36 @@ Commit: `bae85ff`
 
 **Verified:** manual Playwright check shows the radar renders (1 polygon, correct 5 axis labels) and, on a case where eligibility scored 100, the eligibility line is correctly omitted from the reasons list while the other 4 (all below 85 in that run) show their reasons — confirming the "near max" filter works both ways. `npm run build` clean, `npm test` 26/26, demo-path spec still passes with correct numbers.
 
+Commit: `187c0d3`
+
+---
+
+## 2026-09-12 03:36 — Item 5: multi-sig hardening (audit only, no code changes needed)
+
+**Audited `multisig.ts` and `multisig.test.ts` against the task's requirements and found both already satisfied:**
+
+- The attestation hash (`buildAttestation`'s `reportHash`, a `solidityPackedKeccak256` over `entrepreneurName, villageId, lokScore, schemeId, projectCost, loanAmount, timestamp`) already commits to every material fact the task lists: applicant, project cost, scheme, loan amount, and LokScore at signing time. The actual signed payload (`attestationMessage`) goes further and includes the hash plus every field again in human-readable form, plus quorum — so the ECDSA signature binds to the full attestation content, not just the hash.
+- `AppContext.signAs` already calls `verifySignature` at sign time and throws if it fails (`multisig.ts` isn't just producing signatures that are trusted blindly elsewhere) — real enforcement, not a checkbox.
+- Negative tests already exist and pass: `rejects signature from wrong key` (takes a valid signature, relabels its claimed address to a different verifier, confirms `verifySignature` returns false because the recovered signer no longer matches the claimed address) and `rejects signature over tampered attestation data` (takes a valid signature, mutates `loanAmount` on the attestation object it's checked against, confirms `verifySignature` returns false because the signed message text no longer matches). Both prove the ECDSA check is load-bearing, not decorative.
+
+**No code changes made** — this item was already done correctly by the prior session. Re-ran `npm test` to confirm these 5 multisig tests still pass (they're part of the existing 26/26).
+
+Commit: (log-only, folded into next commit)
+
+---
+
+## 2026-09-12 03:40 — Item 6: consolidated report export (print stylesheet, no new dependency)
+
+**Decision:** MASTER_SPEC.md (line 191) explicitly recommends the print-stylesheet approach over a PDF library ("the latter is simpler and has no new heavy dependency"), matching the task's own suggestion — went with `window.print()` rather than adding jsPDF/html2canvas, especially since the production bundle is already flagged by Vite as oversized (1.2MB).
+
+**What I built:**
+- New `/export` route (`ExportPage.tsx`) reusing `buildFeasibility()` and the existing `plan`/`score`/`workingCapital`/`location` state — no duplicated business logic. Sections: applicant + location (with data-provenance line), feasibility (reach, SWOT, competitor density, pricing), finance (project cost/loan/scheme/EMI/full schedule table/working-capital breakdown), LokScore component breakdown + quorum, and a document checklist.
+- New `src/lib/documentChecklist.ts`: a scheme-keyed (`micro_finance`/`term_loan`) list of generically-known NSFDC/lending KYC document categories (Aadhaar, caste certificate, income certificate, project report, etc.), explicitly labeled "Indicative list... confirm the exact requirements with your local NSFDC/SCA channel partner" since I have no authoritative source for the exact per-scheme document list and didn't want to overclaim.
+- Header shows a real generation timestamp (`toLocaleString`) and a visible disclaimer: "Demo output for planning purposes only — not an official NSFDC sanction document" — same honesty posture as the rest of the app.
+- Print stylesheet (`@media print` in `index.css`): hides everything marked `.no-print` (the Shell header/nav, the on-screen print button), removes the decorative background/blur, and adds `page-break-inside: avoid` on sections/table rows so the schedule table doesn't split badly.
+- Linked from `/sanction` (end of the flow) and added to the main nav.
+
+**Verified:** `npm run build` clean, `npm test` 26/26. Manual Playwright walkthrough of the full Scan→Pulse→Report→Finance→Sanction→Export flow dumped the rendered `/export` page text — confirmed every section present with correct numbers (₹10,00,000 project / ₹9,00,000 loan, full 28-quarter schedule closing to ₹0.00, LokScore breakdown, 10-item document checklist). Caught and fixed one bug during this check: the working-capital total field was mislabeled with the "Hyperlocal Feasibility Report" page title (copy-paste error) — added a proper `finance.wcTotal` key in EN/KN and fixed it. Re-ran the demo-path spec afterward — still passes.
+
 Commit: `pending`
 

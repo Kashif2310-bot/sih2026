@@ -91,3 +91,39 @@ body::before {
   backdrop-filter: blur(14px);
   border: 1px solid rgba(11, 61, 46, 0.08);
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body,
+  body::before {
+    background: #fff !important;
+  }
+
+  body {
+    color: #000;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  section {
+    page-break-inside: avoid;
+  }
+}
