@@ -26,5 +26,21 @@ Commit: `5368b4a`
 
 **Verified:** `npm run build` clean, `npm test` 26/26. Manual Playwright check against a real dev server: moving the slider from 7km→10km changed the reach estimate from 3,234 → 6,600 and the Leaflet map rendered; re-ran the full demo-path spec afterward — still passes with correct ₹10,00,000/₹9,00,000/Term Loan numbers.
 
+Commit: `e4f9de5`
+
+---
+
+## 2026-09-12 03:30 — Item 3: location beyond the 5 seed villages
+
+**What I found:** this was already almost entirely built (pre-existing in the initial commit, not something the original audit anticipated): `src/lib/geo.ts` has real Nominatim geocode/reverse-geocode and a best-effort Overpass POI query with category-specific filters and a two-endpoint fallback; `resolveLocation.ts`'s `resolveLiveLocation` wires them together with honest `not fabricated` messaging when population/mandi/competitor data isn't available; `ScanPage.tsx` already has a curated/live radio toggle, a free-text place field, and a "use my location" GPS button.
+
+**What I actually found broken and fixed:** the live-mode UI was calling `t('wizard.locationMode')`, `t('wizard.curated')`, `t('wizard.live')`, `t('wizard.livePlace')`, `t('wizard.useGps')`, `t('wizard.radius')`, and `t('wizard.demoHint')` — none of these keys existed in `i18n/index.ts` for *either* language, so the UI was rendering raw dotted key strings instead of labels (the EN/KN parity test didn't catch this because it only checks that both languages define the same *set* of keys, not that every `t()` call in the app resolves to a defined key). Added all 7 keys in both EN and KN.
+
+**Verified live end-to-end against real Nominatim/Overpass** (network confirmed reachable from this environment) via a throwaway Playwright script, then deleted it:
+- Happy path: "Hassan, Karnataka" free-text → geocoded correctly, Overpass returned 5 real dairy POIs within 7km, `/pulse` rendered with "Population/PPI not available — not fabricated" and "Mandi signal unavailable for this location (not fabricated)" — no invented numbers.
+- Nominatim unreachable (routed to abort): scan blocked with a clear alert, never silently proceeds with a fake location.
+- Overpass unreachable but geocode succeeds: proceeds to `/pulse` with "competitor Overpass failed... Density not fabricated" and the competition-gap component correctly shows "live competitor data unavailable" instead of a number.
+- Re-ran the 5-seed-village demo-path spec afterward — still passes unchanged, confirming this was additive.
+
 Commit: `pending`
 
