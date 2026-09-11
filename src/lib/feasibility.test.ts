@@ -75,4 +75,73 @@ describe('buildFeasibility', () => {
     })
     expect(report.strengths.join(' ')).toMatch(/ಮಾರ್ಜಿನ್|ಗ್ರಾಹಕ|ಕಿ\.ಮೀ/)
   })
+
+  it('never fabricates reach when population data is unavailable (live location)', () => {
+    const liveLocation = {
+      ...location,
+      population: null,
+      households: null,
+      provenance: 'live_lookup' as const,
+      hasCuratedSignals: false,
+    }
+    const report = buildFeasibility({
+      profile,
+      location: liveLocation,
+      weather,
+      mandi: null,
+      plan,
+      lang: 'en',
+    })
+    expect(report.reach).toBeNull()
+    expect(report.strengths.join(' ')).toMatch(/population unknown \(not fabricated\)/)
+  })
+
+  it('states mandi is unavailable rather than inventing a price for live locations', () => {
+    const report = buildFeasibility({
+      profile,
+      location,
+      weather,
+      mandi: null,
+      plan,
+      lang: 'en',
+    })
+    expect(report.threats.join(' ')).toMatch(/Mandi prices unavailable for live locations \(not fabricated\)/)
+  })
+
+  it('flags weather-unavailable as a threat instead of inventing a heat-stress reading', () => {
+    const report = buildFeasibility({
+      profile,
+      location,
+      weather: { ...weather, source: 'unavailable', tempMax: 0, tempMin: 0 },
+      mandi: null,
+      plan,
+      lang: 'en',
+    })
+    expect(report.threats.join(' ')).toMatch(/Live weather unavailable — verify seasonal risk manually/)
+  })
+
+  it('computes priceCoversEmi units needed from the EMI and optimal unit price', () => {
+    const report = buildFeasibility({
+      profile,
+      location,
+      weather,
+      mandi: {
+        commodity: 'Cow Milk',
+        market: 'Mandya APMC',
+        modalPrice: 42,
+        minPrice: 38,
+        maxPrice: 46,
+        unit: '₹/litre',
+        trend: 'flat',
+        changePct: 0,
+        source: 'seeded',
+      },
+      plan,
+      lang: 'en',
+    })
+    expect(report.priceCoversEmi).not.toBeNull()
+    expect(report.priceCoversEmi!.unitsNeeded).toBe(
+      Math.ceil(report.priceCoversEmi!.monthlyEmi / report.priceCoversEmi!.unitPrice),
+    )
+  })
 })

@@ -103,5 +103,22 @@ Commit: `be1ba23`
 
 **Verified:** `npm run build` clean, `npm test` 26/26, demo-path spec still passes (the new aria-label on sign buttons is a superset match so Playwright's substring name matching still finds "Sign as verifier"). Re-screenshotted /pulse after the radar fix — label no longer clipped.
 
+Commit: `1cccd66`
+
+---
+
+## 2026-09-12 03:49 — Item 8: extended test coverage + boundary-value E2E pass
+
+**Extended Vitest coverage** (26 → 37 tests):
+- `feasibility.test.ts`: added cases for reach being `null` (never fabricated) when population data is unavailable on a live location, the mandi-unavailable threat message, the weather-unavailable threat message, and `priceCoversEmi`'s unit-count math.
+- `lokScore.test.ts`: added `scoreEligibility` cases for income-above-ceiling penalty, a check that the non-SC/general rationale text never suggests changing identity (only states the NSFDC rule + points to an alternate channel), and score clamping for a maximally unfavourable profile; added `computeLokScore` cases confirming the fixed neutral fallback values (`weatherFit=45`, `competitionGap=40`) used when weather/competitor data is unavailable, rather than a fabricated number.
+- `multisig.test.ts`: added a test that `reportHash` changes for every material fact independently (name/cost/scheme/loan/score — 6 distinct hashes from 6 inputs varying one field each), and a test that tampering only the quorum fields (which sit outside `reportHash`'s packed fields but inside the signed message text) still invalidates the signature — closes the gap between "what's hashed" and "what's actually signed."
+
+**New Playwright E2E file** (`e2e/boundary-path.spec.ts`, kept in the repo, not a throwaway): drives the boundary-value inputs from item 1 through the real `/scan` UI rather than only unit-testing `buildSchemePlan` directly — zero margin, margin above the Rs 50L project cap, the exact Rs 1,40,000 Micro-Finance flip, and exactly Rs 50L still structuring a Term Loan.
+
+**Bug found and fixed while writing this:** the two rejection tests initially failed — not a test bug. The margin input has HTML `min={1000}`/`max={NSFDC.maxMarginRupees}`, so the browser's native constraint validation silently blocked form submission (with an unstyled, English-only tooltip) before the app's own `onSubmit` handler — which has correct, bilingual, `role=alert` rejection messages already — ever ran. The app's carefully-written honesty messaging for margin=0 and margin>cap was unreachable dead code for the most common invalid inputs. Fixed by adding `noValidate` to the `<form>` so the app's own validation is authoritative.
+
+**Verified:** `npm run build` clean, `npm test` 37/37, all 4 new boundary-path tests pass, demo-path spec still passes.
+
 Commit: `pending`
 

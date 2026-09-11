@@ -87,7 +87,15 @@ export function ScanPage() {
         <p className="mt-2 text-xs font-semibold text-sky">{t('wizard.demoHint')}</p>
       )}
 
-      <form onSubmit={(e) => void onSubmit(e)} className="glass mt-8 space-y-5 rounded-[1.5rem] p-6 shadow-sm">
+      {/* noValidate: the app's own validation (onSubmit below) owns rejection
+          messaging so it's bilingual and role=alert — native browser
+          constraint validation would otherwise silently block submission
+          with an unstyled, English-only tooltip before onSubmit ever runs. */}
+      <form
+        onSubmit={(e) => void onSubmit(e)}
+        noValidate
+        className="glass mt-8 space-y-5 rounded-[1.5rem] p-6 shadow-sm"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium">
             {t('wizard.name')}
