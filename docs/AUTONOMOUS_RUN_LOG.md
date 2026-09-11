@@ -14,5 +14,17 @@ Branch: `autonomous/overnight-build`. Working top-to-bottom through the task lis
 
 **Decision:** `playwright.config.ts`'s `webServer.reuseExistingServer` was picking up an unrelated process already bound to port 5173 on this machine (Docker Desktop / WSL relay), serving stale built assets instead of the dev app — this caused `getByLabel('Full name')` to time out. This is a pre-existing environment quirk, not a bug in the app. I did not change `playwright.config.ts` (out of scope, and it's correct in CI/clean-machine conditions); I only used a local override config to verify manually. Leaving this note here so a future run doesn't waste time on it.
 
-Commit: (see below)
+Commit: `5368b4a`
+
+---
+
+## 2026-09-12 03:25 — Item 2: adjustable reach-radius slider on /report
+
+**What I did:** added a `<input type="range">` slider (5–10 km, step 0.5, default = the radius used at scan time) to a new "Consumer reach map" block at the top of `/report`. It drives three things live: (a) the displayed reach estimate, scaled by area ratio `(radiusKm/scanRadiusKm)²` against the original population-derived reach number — returns "population data unavailable" text instead of a fabricated number for live (non-curated) locations where population is null; (b) a `VillageMap` (not previously rendered on `/report`) whose circle radius tracks the slider; (c) competitor markers, filtered from the already-fetched competitor list by real haversine distance (`distanceKm`, added to `geo.ts`) rather than a new network call — exact when narrowing the radius, and honestly caveated ("beyond the original scan radius — actual competitor count may be higher than shown") when widening past the original scan radius, since we only know about POIs actually returned by the one Overpass query already made.
+
+**Decision:** left the existing "Competitor density" card (the seeded/scored value used by LokScore) untouched and radius-independent — it's the number that actually drove the quorum math on `/sanction`, and I didn't want the slider to make that card appear to disagree with itself. The new live map + filtered competitor count is presented as a separate, clearly-labeled exploration tool.
+
+**Verified:** `npm run build` clean, `npm test` 26/26. Manual Playwright check against a real dev server: moving the slider from 7km→10km changed the reach estimate from 3,234 → 6,600 and the Leaflet map rendered; re-ran the full demo-path spec afterward — still passes with correct ₹10,00,000/₹9,00,000/Term Loan numbers.
+
+Commit: `pending`
 

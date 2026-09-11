@@ -1,13 +1,27 @@
+import { useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Users } from 'lucide-react'
 import { useApp } from '../state/useApp'
 import { buildFeasibility } from '../lib/feasibility'
+import { REACH_KM } from '../lib/config'
+import { distanceKm } from '../lib/geo'
+import { VillageMap } from '../components/VillageMap'
 
 export function ReportPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
   const { profile, location, weather, mandi, score, plan } = useApp()
+  const [radiusKm, setRadiusKm] = useState(location?.radiusKm ?? REACH_KM.default)
+
+  // Competitors were fetched once at scan time within location.radiusKm. Filtering down
+  // (radiusKm <= location.radiusKm) is exact; going wider only shows what's already known.
+  const competitorsInRadius = useMemo(() => {
+    if (!location) return []
+    return location.competitors.filter(
+      (c) => distanceKm(location.lat, location.lng, c.lat, c.lng) <= radiusKm,
+    )
+  }, [location, radiusKm])
 
   if (!profile || !weather || !score || !location || !plan) return <Navigate to="/scan" replace />
 
@@ -20,6 +34,12 @@ export function ReportPage() {
     lang: kn ? 'kn' : 'en',
   })
 
+  // Area-scaled estimate: original reach was computed for location.radiusKm; scale by
+  // area ratio for the slider value. Never fabricated when population data is absent.
+  const areaRatio = (radiusKm * radiusKm) / (location.radiusKm * location.radiusKm)
+  const scaledReach = report.reach != null ? Math.round(report.reach * areaRatio) : null
+  const beyondScan = radiusKm > location.radiusKm
+
   return (
     <div className="space-y-6">
       <div>
@@ -28,6 +48,47 @@ export function ReportPage() {
           {kn ? location.nameKn : location.name} · LokScore {score.total} ({score.grade})
         </p>
       </div>
+
+      <Block title={t('report.reachMap')}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex-1 text-sm font-medium text-ink/70">
+            {t('report.radiusLabel')}: <span className="font-bold text-forest">{radiusKm} km</span>
+            <input
+              type="range"
+              min={REACH_KM.min}
+              max={REACH_KM.max}
+              step={0.5}
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(Number(e.target.value))}
+              aria-label={t('report.radiusLabel')}
+              aria-valuetext={`${radiusKm} km`}
+              className="mt-2 block w-full accent-forest"
+            />
+          </label>
+          <div className="rounded-xl bg-mist px-3 py-2 text-right">
+            <p className="text-[10px] uppercase text-ink/50">{t('report.reachEstimate')}</p>
+            <p className="font-display text-lg font-bold text-forest">
+              {scaledReach != null ? scaledReach.toLocaleString('en-IN') : t('report.reachUnavailable')}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 h-64 overflow-hidden rounded-xl">
+          <VillageMap
+            lat={location.lat}
+            lng={location.lng}
+            name={kn ? location.nameKn : location.name}
+            radiusKm={radiusKm}
+            competitors={competitorsInRadius}
+          />
+        </div>
+        <p className="mt-3 flex items-center gap-2 text-xs text-ink/60">
+          <Users className="h-3.5 w-3.5" />
+          {location.competitorQueryOk
+            ? `${competitorsInRadius.length} ${t('report.mapCompetitors')}`
+            : t('report.mapUnavailable')}
+          {beyondScan && location.competitorQueryOk ? ` — ${t('report.beyondScanRadius')}` : ''}
+        </p>
+      </Block>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Block title={t('report.swot')}>
