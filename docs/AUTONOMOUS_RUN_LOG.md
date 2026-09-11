@@ -1,6 +1,30 @@
 # Autonomous Overnight Build Log
 
-Branch: `autonomous/overnight-build`. Working top-to-bottom through the task list without stopping for input. Entries appended chronologically below; a final summary will be added at the top of this file when the run ends.
+## END-OF-RUN SUMMARY (2026-09-12 03:50)
+
+**Branch:** `autonomous/overnight-build` (created from `main` at `14d59fe`). **7 commits**, all with passing build+tests at each step. `npm run build` passes as of the last commit (`e377c56`); `npm test` is 37/37 passing (up from 26 at the start of this run). The exact demo path (Scan: SC woman, dairy, Dinka, ₹1L margin → project cost ₹10,00,000 → loan ₹9,00,000 → Term Loan Scheme) was re-verified after every single commit via the Playwright demo-path spec and never regressed. This branch has not been merged — that's for the user to do after review.
+
+**Fully done — all 8 task-list items:**
+1. **Phase 1 finish** (`5368b4a`): almost entirely already done by a prior session's uncommitted work — real reducing-balance BigInt-exact quarterly annuity EMI, integer-paise math, schedule closes to exactly ₹0.00, `capitalize_into_principal` moratorium convention named and displayed, boundary rejections for ₹0/empty and >₹50L margin, honesty fixes (weather-unavailable state, verifier fixture-identity labels, "simulated release" escrow copy), itemised working-capital module, `LOKSCORE_WEIGHTS` config extraction. I fixed two build-breaking TypeScript errors and a stale test file to get it to a green build.
+2. **Reach-radius slider on /report** (`e4f9de5`): new 5–10km slider drives a live map + an area-scaled reach estimate + haversine-refiltered competitor markers (no new network calls), with an honest caveat when widening past the original scan radius.
+3. **Location beyond the 5 seed villages** (`bae85ff`): the Nominatim/Overpass/free-text/GPS plumbing was already built (pre-existing in the initial commit); found and fixed 7 missing i18n keys that were making the live-location UI render raw key strings. Verified end-to-end against real Nominatim/Overpass, including both failure-fallback paths.
+4. **LokScore radar chart** (`187c0d3`): added a recharts radar chart on /pulse; restructured the reasons list to only surface a component's one-line explanation when it's below a near-max threshold (85), reusing existing rule-based sentences.
+5. **Multi-sig hardening** (audited in `be1ba23`'s log entry, no code changes): already correctly implemented — attestation hash + signed message commit to every material fact, and wrong-key/tampered-data negative tests already existed and pass.
+6. **Consolidated report export** (`be1ba23`): new `/export` route + print stylesheet (no new dependency, per MASTER_SPEC's own recommendation) combining location, feasibility, finance, LokScore, and a document checklist, with a generation timestamp and provenance note.
+7. **Polish pass** (`1cccd66`): reduced-motion support for the landing page's framer-motion animations, distinguishing ARIA labels on /sanction's sign buttons, confirmed zero horizontal overflow at 360px across all 7 routes, and fixed a radar-chart label-clipping bug found while screenshotting.
+8. **Extended test coverage + boundary E2E** (`e377c56`): 11 new unit tests across feasibility/lokScore/multisig, plus a new permanent `e2e/boundary-path.spec.ts`. Found and fixed a real bug while writing it: native HTML `min`/`max` on the margin input was silently blocking form submission before the app's own bilingual rejection messages could ever run — added `noValidate` so the app's own validation is authoritative.
+
+**Partially done / not done:** nothing outstanding from the 8-item list — all items were addressed to a verified, tested state. Two things worth the user's attention rather than mine to decide:
+- The finance repayment-schedule table and the map on `/report`/`/pulse`/`/export` have their own internal horizontal/vertical scroll on narrow screens (by design, not a bug) — a future pass could redesign the schedule table for mobile (e.g., a card list instead of a 5-column table) if that's wanted.
+- The production bundle is ~1.26MB (recharts + leaflet + ethers are the main weight) and Vite flags it; no code-splitting was attempted since it wasn't in scope and carries its own risk.
+
+**Blocked:** nothing was blocked for more than a few minutes in this run.
+
+**Environment note for whoever reviews this:** `playwright.config.ts`'s default webServer target (port 5173) collides with an unrelated process already bound to that port on this dev machine (Docker Desktop/WSL relay serving stale content) — every manual verification in this run used a scratch `playwright.local.config.ts` pointed at a dev server on port 5183 instead (always deleted before committing, never part of the diff). Running `npm run test:e2e` normally on a clean machine should work fine; on this machine specifically, start `npm run dev -- --port <free-port>` and point a local Playwright config at it if verifying manually.
+
+---
+
+Branch: `autonomous/overnight-build`. Working top-to-bottom through the task list without stopping for input. Entries appended chronologically below; this final summary was added at the top when the run ended — see below for the full chronological log.
 
 ---
 
