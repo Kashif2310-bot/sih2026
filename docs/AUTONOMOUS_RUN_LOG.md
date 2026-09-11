@@ -1,6 +1,24 @@
 # Autonomous Overnight Build Log
 
-## END-OF-RUN SUMMARY (2026-09-12 03:50)
+## FINISH-LINE PASS — FINAL STATUS (2026-09-12 05:26) — supersedes the summary below
+
+**Merged.** `autonomous/overnight-build` was merged into `main` with a real, non-squashed merge commit (`f5f7eeb`, `git merge --no-ff`) after all four required verification gates passed clean. `main` currently sits at `c118ea0` (deploy-config commit, on top of the merge and the presentation-docs commit). The feature branch was not deleted — it still exists locally, now fully absorbed into `main`'s history.
+
+**Why it was safe to merge:** every one of steps 1–4 passed on a genuinely clean check, not a rubber stamp:
+1. **Independent re-verification** — clean-room rebuild (`rm -rf node_modules dist && npm install && build && test`) passed; read the actual `finance.ts`/`weather.ts`/`SanctionPage.tsx` code line-by-line rather than trusting the prior log; manually drove the live-location feature through Shivamogga (a town never tried before, not a seed village) and confirmed real Nominatim/Overpass/Open-Meteo data with honest fallbacks and zero seed-data leakage.
+2. **Code-splitting** — fixed the 500kB chunk warning for real (589.58kB → 431.16kB main chunk) via route-level `React.lazy` and deferring `ethers` to first scan; verified signing still works with 5 real ECDSA signatures afterward.
+3. **Form-validation sweep** — found and fixed a regression I'd introduced in the *previous* round: fixing the margin field's native-validation bug by adding blanket `noValidate` had silently disabled name/age/experience validation too. Added the missing checks plus 3 regression tests.
+4. **Full i18n re-check** — found and fixed two genuine English leaks (an untranslated Suspense loading fallback, and hardcoded "% p.a./yrs/mo" suffixes in two files) via an automated t()-key-resolution check plus a manual Kannada click-through of every route. Also honestly logged what was found and *deliberately left alone* (mandi seed data, weather-chart weekday labels, date locale) rather than either silently ignoring them or scope-creeping into an unrelated data-modeling change.
+
+**Final state of `main`:** `npm run build` clean (no warnings), `npm test` 37/37, full Playwright e2e suite 8/8 (demo-path + 7 boundary/regression tests) — all re-run on `main` itself after the merge, not just on the feature branch. The exact demo path (Scan: SC woman, dairy, Dinka, ₹1L margin → ₹10,00,000 project → ₹9,00,000 loan → Term Loan Scheme) is asserted by `demo-path.spec.ts` and passed on `main` post-merge.
+
+**Also done post-merge, directly on `main`:** README.md rewritten with exact NSFDC figures and run instructions; new `docs/PRESENTATION_NOTES.md` with an honest live/simulated/deferred breakdown and one section explicitly left `TODO` for the team (why the real-signature/adaptive-quorum approach differs from the original idea-round pitch — not invented here); `vercel.json`/`netlify.toml` added for SPA-routing-aware static hosting (no deploy performed; one-command deploy steps logged below in this file's Step 7 entry for whoever has host access).
+
+**Nothing was left blocked or unmerged.** All 8 steps in the task list completed to a verified state.
+
+---
+
+## END-OF-RUN SUMMARY (2026-09-12 03:50) — from the PRIOR autonomous-build round, before this finish-line pass
 
 **Branch:** `autonomous/overnight-build` (created from `main` at `14d59fe`). **7 commits**, all with passing build+tests at each step. `npm run build` passes as of the last commit (`e377c56`); `npm test` is 37/37 passing (up from 26 at the start of this run). The exact demo path (Scan: SC woman, dairy, Dinka, ₹1L margin → project cost ₹10,00,000 → loan ₹9,00,000 → Term Loan Scheme) was re-verified after every single commit via the Playwright demo-path spec and never regressed. This branch has not been merged — that's for the user to do after review.
 
