@@ -169,3 +169,14 @@ New session, building on the completed 8-commit branch above. Re-verifying skept
 
 **Conclusion: all of the prior session's "done" claims for item 1 hold up under skeptical re-verification. No fixes needed here.** Proceeding to step 2.
 
+## Step 2 — code-splitting to fix the 500kB chunk warning
+
+Two changes:
+1. **Route-level splitting** (`App.tsx`): every page except `LandingPage` (kept eager for a fast first paint) is now `React.lazy(() => import(...))`, wrapped in a `<Suspense>` with a minimal "Loading…" fallback. This pulled `PulsePage` (recharts) and `VillageMap` (react-leaflet, shared by `/pulse` and `/report`) out into their own on-demand chunks (410kB and 155kB respectively) instead of the main bundle.
+2. **Deferred ethers** (`AppContext.tsx`): `multisig.ts` (ethers) was previously a static top-level import in `AppContext`, which wraps the entire app — meaning ethers loaded on the landing page even though nothing there ever signs anything. Replaced the static import with a cached dynamic `import('../lib/multisig')`, loaded on first `setProfileAndScan` call (i.e., when the user actually submits the scan form) rather than at app mount. The resolved module is cached in a promise (module-level) and a ref (per-provider-instance) so `signAs`/`releaseEscrow` use the already-loaded functions synchronously rather than re-importing. `verifiers` moved from an eager `useMemo(() => createVerifierPool())` to `useState<Verifier[]>([])`, populated from the same dynamic-import call. This put ethers into its own 158kB chunk, loaded only when a scan actually runs.
+3. **Bonus cleanup:** `mandi.ts` had a `const { BUSINESS_META } = await import('../data/villages')` that Vite flagged as `INEFFECTIVE_DYNAMIC_IMPORT` (villages.ts is already statically imported by half a dozen other modules loaded alongside it, so the dynamic import bought nothing but a build warning). Converted to a plain static import.
+
+**Result:** main entry chunk dropped from 589.58 kB to 431.16 kB minified; the "chunks larger than 500 kB" warning is gone entirely from `npm run build` output, as is the `INEFFECTIVE_DYNAMIC_IMPORT` warning. No page now exceeds ~410kB (PulsePage/recharts, loaded only when visiting `/pulse`).
+
+**Verified this didn't break real signing:** re-ran the full test suite (`npm test` 37/37) and the full Playwright suite (5/5, including the demo-path spec which signs with 5 real ECDSA verifier wallets and releases the simulated escrow) after both changes. The deferred-import refactor is a loading-time change only — `signAttestation`/`verifySignature` still do real secp256k1 ECDSA via the same `ethers.Wallet`/`verifyMessage` calls as before, just imported lazily.
+
