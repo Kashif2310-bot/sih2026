@@ -11,6 +11,9 @@ export const translationResources = {
       start: 'Start Opportunity Scan',
       demo: 'Watch 90-second demo path',
       lang: 'ಕನ್ನಡ',
+      common: {
+        loading: 'Loading…',
+      },
       nav: {
         home: 'Home',
         scan: 'Scan',
@@ -148,6 +151,9 @@ export const translationResources = {
       start: 'ಅವಕಾಶ ಸ್ಕ್ಯಾನ್ ಪ್ರಾರಂಭಿಸಿ',
       demo: '90 ಸೆಕೆಂಡ್ ಡೆಮೋ ಮಾರ್ಗ',
       lang: 'English',
+      common: {
+        loading: 'ಲೋಡ್ ಆಗುತ್ತಿದೆ…',
+      },
       nav: {
         home: 'ಮುಖಪುಟ',
         scan: 'ಸ್ಕ್ಯಾನ್',

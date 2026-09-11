@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Shell } from './components/Shell'
 import { LandingPage } from './pages/LandingPage'
 import { AppProvider } from './state/AppContext'
@@ -17,7 +18,10 @@ const SanctionPage = lazy(() =>
 const ExportPage = lazy(() => import('./pages/ExportPage').then((m) => ({ default: m.ExportPage })))
 
 function RouteFallback() {
-  return <div className="py-16 text-center text-sm text-ink/50">Loading…</div>
+  // Must stay bilingual: the Suspense fallback is real UI a Kannada-mode
+  // user can genuinely see on first load of a lazy route chunk.
+  const { t } = useTranslation()
+  return <div className="py-16 text-center text-sm text-ink/50">{t('common.loading')}</div>
 }
 
 export default function App() {

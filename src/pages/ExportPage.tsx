@@ -101,8 +101,14 @@ export function ExportPage() {
                 <Field label={t('finance.loan')} value={formatINR(plan.loanAmount)} />
                 <Field label={t('finance.scheme')} value={kn ? plan.schemeNameKn : plan.schemeName} />
                 <Field label={t('finance.emi')} value={formatINR(plan.quarterlyEmi)} />
-                <Field label={kn ? 'ಬಡ್ಡಿ' : 'Interest'} value={`${plan.interestRate}% p.a.`} />
-                <Field label={kn ? 'ಅವಧಿ' : 'Tenure'} value={`${plan.tenureYears} yrs`} />
+                <Field
+                  label={kn ? 'ಬಡ್ಡಿ' : 'Interest'}
+                  value={kn ? `ವಾರ್ಷಿಕ ${plan.interestRate}%` : `${plan.interestRate}% p.a.`}
+                />
+                <Field
+                  label={kn ? 'ಅವಧಿ' : 'Tenure'}
+                  value={kn ? `${plan.tenureYears} ವರ್ಷ` : `${plan.tenureYears} yrs`}
+                />
               </Grid>
               <p className="mt-2 text-xs text-ink/55">{kn ? MORATORIUM_POLICY_LABEL.kn : MORATORIUM_POLICY_LABEL.en}</p>
 

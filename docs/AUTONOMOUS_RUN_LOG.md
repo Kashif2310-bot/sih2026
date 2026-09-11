@@ -192,3 +192,20 @@ Two changes:
 
 **Verified:** all 7 `boundary-path.spec.ts` tests pass (4 from before + 3 new), full `npm test` 37/37, demo-path spec still passes, `npm run build` still clean with no new warnings.
 
+## Step 4 — full i18n re-check
+
+**Automated check first:** the existing `src/i18n/parity.test.ts` only proves the EN and KN key *trees* are identical — it doesn't prove every `t('...')` call in the app actually resolves to a defined key (that exact gap caused the missing-`wizard.*`-keys bug found and fixed two rounds ago). So I extracted every static `t('...')` call across `src/pages` and `src/components` (113 unique keys) with a throwaway script and confirmed all 113 resolve in both `en` and `kn` — clean.
+
+**Manual click-through in Kannada** (throwaway Playwright script, written/run/deleted): toggled to Kannada on `/`, then navigated via real client-side link clicks (not `page.goto`, which triggers a hard reload — this app's `i18n.init` has no persistence/`LanguageDetector`, so a hard reload always resets to English; that's a pre-existing characteristic unrelated to this step, not something to fix here) through `/scan` → `/pulse` → `/report` → `/finance` → `/sanction` → `/export`, and separately the live-location free-text UI. Dumped full page text at each stop.
+
+**Found and fixed two genuine leaks, both introduced by this branch's own work:**
+1. **The Suspense loading fallback added in step 2** (`App.tsx`'s `RouteFallback`) was hardcoded `"Loading…"` with no Kannada string at all — a real, reachable English string for a Kannada-mode user on first load of any lazy route chunk. Added a `common.loading` i18n key in both languages and wired the fallback through `useTranslation()`.
+2. **FinancePage.tsx and ExportPage.tsx** (both substantially rewritten by this branch in earlier rounds) hardcoded `"${rate}% p.a."`, `"${years} yrs"`, `"${months} mo"` for the Interest/Tenure/Moratorium tiles regardless of language, even though the *labels* right next to them were already correctly bilingual (`kn ? 'ಬಡ್ಡಿ' : 'Interest'`) — an inconsistency where half of each tile localized and half didn't. Fixed both files identically: `kn ? 'ವಾರ್ಷಿಕ 8%' : '8% p.a.'`-style values, using the same terms (ವರ್ಷ/ತಿಂಗಳು) already used elsewhere in the same file's "Routing logic" section for consistency.
+
+**Found and deliberately left alone (pre-existing, out of this step's scope, disclosed rather than silently ignored):**
+- Mandi commodity/market names (e.g. "Milk · 39 ₹/litre", "Mandya APMC") come from `villages.ts`/`mandi.ts` seed data that has never had Kannada fields — this is pre-existing data-modeling scope (seed data, not new UI copy this branch added) and a much bigger lift (would need a `commodityKn`/`marketKn` field on every seed record) than a 2-string label fix. Flagging for a future pass, not fixing under this step.
+- The weather chart's weekday abbreviations ("Sun Mon Tue…") come from `date-fns`'s `format(date, 'EEE')` with no locale argument, so they're always English regardless of app language. `date-fns` does not ship an official Kannada locale, so fixing this properly would mean hand-rolling a weekday abbreviation map rather than a one-line locale swap — judged out of proportion for this step given it's a pre-existing chart, not new work.
+- Financial schedule due-date labels (e.g. "Dec 2026") use `toLocaleDateString('en-IN', ...)` regardless of language, same as `formatINR`'s Indian-numeral grouping — left alone deliberately since numerals/date-grouping conventions commonly stay in a consistent format across languages in Indian financial documents, and changing it risks inconsistent `Intl` locale support across browsers for a `kn-IN` locale that wasn't part of any explicit requirement.
+
+**Verified:** `npm run build` clean, `npm test` 37/37, full Playwright suite (demo-path + 7 boundary-path tests) 8/8 pass after the i18n fixes.
+

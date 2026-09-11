@@ -44,9 +44,18 @@ export function FinancePage() {
 
       {!rejected && (
         <div className="glass grid gap-4 rounded-2xl p-5 sm:grid-cols-4">
-          <Mini label={kn ? 'ಬಡ್ಡಿ' : 'Interest'} value={`${plan.interestRate}% p.a.`} />
-          <Mini label={kn ? 'ಅವಧಿ' : 'Tenure'} value={`${plan.tenureYears} yrs`} />
-          <Mini label={kn ? 'ಮೊರಟೋರಿಯಂ' : 'Moratorium'} value={`${plan.moratoriumMonths} mo`} />
+          <Mini
+            label={kn ? 'ಬಡ್ಡಿ' : 'Interest'}
+            value={kn ? `ವಾರ್ಷಿಕ ${plan.interestRate}%` : `${plan.interestRate}% p.a.`}
+          />
+          <Mini
+            label={kn ? 'ಅವಧಿ' : 'Tenure'}
+            value={kn ? `${plan.tenureYears} ವರ್ಷ` : `${plan.tenureYears} yrs`}
+          />
+          <Mini
+            label={kn ? 'ಮೊರಟೋರಿಯಂ' : 'Moratorium'}
+            value={kn ? `${plan.moratoriumMonths} ತಿಂಗಳು` : `${plan.moratoriumMonths} mo`}
+          />
           <Mini label={t('finance.emi')} value={formatINR(plan.quarterlyEmi)} />
         </div>
       )}
