@@ -42,5 +42,17 @@ Commit: `e4f9de5`
 - Overpass unreachable but geocode succeeds: proceeds to `/pulse` with "competitor Overpass failed... Density not fabricated" and the competition-gap component correctly shows "live competitor data unavailable" instead of a number.
 - Re-ran the 5-seed-village demo-path spec afterward — still passes unchanged, confirming this was additive.
 
+Commit: `bae85ff`
+
+---
+
+## 2026-09-12 03:33 — Item 4: LokScore radar chart + filtered plain-language reasons
+
+**What I found:** `/pulse` already had a "LokScore breakdown" section with 5 numeric tiles and a full rationale list (`score.rationale`/`rationaleKn` from `lokScore.ts`, one sentence per component, always shown regardless of score) — but no chart, as the task explicitly asked for.
+
+**What I did:** added a recharts `RadarChart` (5 axes: Demand/Comp. gap/Weather/Finance/Eligibility, 0-100 scale) next to the numeric tiles. Restructured the reason list to only show a component's one-line reason when its score is below a `NEAR_MAX_THRESHOLD = 85`, reusing the existing rule-based sentences already generated in `computeLokScore` (positionally mapped: rationale[0..3] = demand/competitionGap/weatherFit/financialFit, rationale[4] = the first eligibility note) rather than inventing new copy. Checked the eligibility reason text for both branches (SC-match / income-ceiling) — neither frames a shortfall as "how to change who you are to qualify," both just state the NSFDC rule and, where relevant, point to an alternate channel.
+
+**Verified:** manual Playwright check shows the radar renders (1 polygon, correct 5 axis labels) and, on a case where eligibility scored 100, the eligibility line is correctly omitted from the reasons list while the other 4 (all below 85 in that run) show their reasons — confirming the "near max" filter works both ways. `npm run build` clean, `npm test` 26/26, demo-path spec still passes with correct numbers.
+
 Commit: `pending`
 

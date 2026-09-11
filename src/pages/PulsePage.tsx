@@ -5,6 +5,11 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -44,6 +49,40 @@ export function PulsePage() {
     max: d.max,
     rain: d.rain,
   }))
+
+  const componentDefs = [
+    {
+      key: 'demand',
+      label: kn ? 'ಬೇಡಿಕೆ' : 'Demand',
+      value: score.demand,
+      reason: kn ? score.rationaleKn[0] : score.rationale[0],
+    },
+    {
+      key: 'competitionGap',
+      label: kn ? 'ಸ್ಪರ್ಧಾ ಅಂತರ' : 'Comp. gap',
+      value: score.competitionGap,
+      reason: kn ? score.rationaleKn[1] : score.rationale[1],
+    },
+    {
+      key: 'weatherFit',
+      label: kn ? 'ಹವಾಮಾನ' : 'Weather',
+      value: score.weatherFit,
+      reason: kn ? score.rationaleKn[2] : score.rationale[2],
+    },
+    {
+      key: 'financialFit',
+      label: kn ? 'ಹಣಕಾಸು' : 'Finance',
+      value: score.financialFit,
+      reason: kn ? score.rationaleKn[3] : score.rationale[3],
+    },
+    {
+      key: 'eligibility',
+      label: kn ? 'ಅರ್ಹತೆ' : 'Eligibility',
+      value: score.eligibility,
+      reason: kn ? score.rationaleKn[4] : score.rationale[4],
+    },
+  ] as const
+  const NEAR_MAX_THRESHOLD = 85
 
   return (
     <div className="space-y-6">
@@ -173,27 +212,43 @@ export function PulsePage() {
       </div>
 
       <div className="glass rounded-2xl p-5">
-        <h3 className="font-semibold text-forest">{kn ? 'ಲೋಕ್‌ಸ್ಕೋರ್ ವಿಭಜನೆ' : 'LokScore breakdown'}</h3>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {(
-            [
-              [kn ? 'ಬೇಡಿಕೆ' : 'Demand', score.demand],
-              [kn ? 'ಸ್ಪರ್ಧಾ ಅಂತರ' : 'Comp. gap', score.competitionGap],
-              [kn ? 'ಹವಾಮಾನ' : 'Weather', score.weatherFit],
-              [kn ? 'ಹಣಕಾಸು' : 'Finance', score.financialFit],
-              [kn ? 'ಅರ್ಹತೆ' : 'Eligibility', score.eligibility],
-            ] as const
-          ).map(([label, val]) => (
-            <div key={label} className="rounded-xl bg-mist/70 px-3 py-3 text-center">
-              <p className="text-xs text-ink/55">{label}</p>
-              <p className="text-xl font-bold text-forest">{val}</p>
-            </div>
-          ))}
+        <h3 className="font-semibold text-forest">{t('pulse.breakdown')}</h3>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={componentDefs} outerRadius="75%">
+                <PolarGrid stroke="#0b3d2e22" />
+                <PolarAngleAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: '#0b3d2ecc' }}
+                />
+                <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9 }} axisLine={false} />
+                <Radar
+                  name={t('pulse.breakdown')}
+                  dataKey="value"
+                  stroke="#0b3d2e"
+                  fill="#1f6b4f"
+                  fillOpacity={0.35}
+                />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-2 gap-2 content-start sm:grid-cols-3 md:grid-cols-2">
+            {componentDefs.map((c) => (
+              <div key={c.key} className="rounded-xl bg-mist/70 px-3 py-3 text-center">
+                <p className="text-xs text-ink/55">{c.label}</p>
+                <p className="text-xl font-bold text-forest">{c.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
         <ul className="mt-4 space-y-1 text-sm text-ink/70">
-          {(kn ? score.rationaleKn : score.rationale).map((r) => (
-            <li key={r}>• {r}</li>
-          ))}
+          {componentDefs
+            .filter((c) => c.value < NEAR_MAX_THRESHOLD)
+            .map((c) => (
+              <li key={c.key}>• {c.reason}</li>
+            ))}
         </ul>
         <p className="mt-3 text-sm font-semibold text-sky">
           {kn ? 'ಅನುಮೋದನಾ ಕೋರಂ' : 'Sanction quorum'}: {score.quorumRequired}/{score.quorumPool}

@@ -63,6 +63,7 @@ export const translationResources = {
         continue: 'Open feasibility report',
         weatherUnavailable: 'Weather unavailable — no fabricated temperature is shown.',
         mandiUnavailable: 'Mandi signal unavailable for this location (not fabricated).',
+        breakdown: 'LokScore breakdown',
       },
       report: {
         title: 'Hyperlocal Feasibility Report',
@@ -176,6 +177,7 @@ export const translationResources = {
         continue: 'ಸಾಧ್ಯತಾ ವರದಿ ತೆರೆಯಿರಿ',
         weatherUnavailable: 'ಹವಾಮಾನ ಲಭ್ಯವಿಲ್ಲ — ಕಲ್ಪಿತ ಉಷ್ಣತೆ ತೋರಿಸಿಲ್ಲ.',
         mandiUnavailable: 'ಈ ಸ್ಥಳಕ್ಕೆ ಮಂಡಿ ಸಂಕೇತ ಲಭ್ಯವಿಲ್ಲ (ಕಲ್ಪಿತವಲ್ಲ).',
+        breakdown: 'ಲೋಕ್‌ಸ್ಕೋರ್ ವಿಭಜನೆ',
       },
       report: {
         title: 'ಹೈಪರ್‌ಲೋಕಲ್ ಸಾಧ್ಯತಾ ವರದಿ',
