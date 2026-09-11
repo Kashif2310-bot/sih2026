@@ -1,4 +1,4 @@
-import type { BusinessCategory } from '../data/villages'
+import { BUSINESS_META, type BusinessCategory } from '../data/villages'
 import type { ResolvedLocation } from './resolveLocation'
 
 export async function fetchMandiSignal(
@@ -9,7 +9,6 @@ export async function fetchMandiSignal(
   if (!location.hasCuratedSignals) {
     return null
   }
-  const { BUSINESS_META } = await import('../data/villages')
   const commodity = BUSINESS_META[category].mandiCommodity ?? defaultCommodity(category)
   return synthesizeMandi(location, commodity, category)
 }

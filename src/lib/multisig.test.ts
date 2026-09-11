@@ -7,6 +7,7 @@ import {
   verifySignature,
 } from './multisig'
 import type { LokScoreBreakdown } from './lokScore'
+import { LOKSCORE_WEIGHTS } from './config'
 
 const score = (quorumRequired: number, quorumPool = 5): LokScoreBreakdown => ({
   demand: 70,
@@ -21,6 +22,7 @@ const score = (quorumRequired: number, quorumPool = 5): LokScoreBreakdown => ({
   mentorRequired: false,
   rationale: [],
   rationaleKn: [],
+  weights: LOKSCORE_WEIGHTS,
 })
 
 describe('multisig ECDSA', () => {
@@ -88,6 +90,47 @@ describe('multisig ECDSA', () => {
     const record = await signAttestation(pool[0], a)
     const tampered = { ...a, loanAmount: 1 }
     expect(verifySignature(tampered, record)).toBe(false)
+  })
+
+  it('reportHash changes when any material fact changes (applicant, cost, scheme, loan, score)', () => {
+    const base = {
+      entrepreneurName: 'Lakshmi S.',
+      villageId: 'dinka-mandya',
+      lokScore: 84,
+      schemeId: 'term_loan',
+      projectCost: 1_000_000,
+      loanAmount: 900_000,
+      quorumRequired: 2,
+      quorumPool: 3,
+    }
+    const a = buildAttestation(base)
+    const byName = buildAttestation({ ...base, entrepreneurName: 'Someone Else' })
+    const byCost = buildAttestation({ ...base, projectCost: 1_000_001 })
+    const byScheme = buildAttestation({ ...base, schemeId: 'micro_finance' })
+    const byLoan = buildAttestation({ ...base, loanAmount: 900_001 })
+    const byScore = buildAttestation({ ...base, lokScore: 85 })
+    const hashes = new Set([a, byName, byCost, byScheme, byLoan, byScore].map((x) => x.reportHash))
+    expect(hashes.size).toBe(6)
+  })
+
+  it('rejects a signature when only the quorum fields are tampered, even though they sit outside reportHash', async () => {
+    const pool = createVerifierPool()
+    const a = buildAttestation({
+      entrepreneurName: 'Lakshmi S.',
+      villageId: 'dinka-mandya',
+      lokScore: 84,
+      schemeId: 'term_loan',
+      projectCost: 1_000_000,
+      loanAmount: 900_000,
+      quorumRequired: 2,
+      quorumPool: 3,
+    })
+    const record = await signAttestation(pool[0], a)
+    // quorumRequired/quorumPool aren't in reportHash's packed fields, but they are
+    // in the signed message text (attestationMessage) - so tampering them must
+    // still invalidate the signature.
+    const tamperedQuorum = { ...a, quorumRequired: 4, quorumPool: 5 }
+    expect(verifySignature(tamperedQuorum, record)).toBe(false)
   })
 
   it('quorumMet requires enough signatures', () => {

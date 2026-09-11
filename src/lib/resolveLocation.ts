@@ -41,7 +41,7 @@ export interface ResolvedLocation {
 
 export type LocationMode = 'curated' | 'live'
 
-function villageToResolved(v: Village, radiusKm: number): ResolvedLocation {
+export function curatedLocationFromVillage(v: Village, radiusKm: number): ResolvedLocation {
   return {
     id: v.id,
     name: v.name,
@@ -76,10 +76,10 @@ function hitName(hit: GeocodeHit): string {
 export async function resolveCuratedVillage(
   villageId: string,
   category: BusinessCategory,
-  radiusKm = REACH_KM.default,
+  radiusKm: number = REACH_KM.default,
 ): Promise<ResolvedLocation> {
   const v = VILLAGES.find((x) => x.id === villageId) ?? VILLAGES[0]
-  const base = villageToResolved(v, radiusKm)
+  const base = curatedLocationFromVillage(v, radiusKm)
   // Enrich curated map with live POIs when possible; keep seeded density as source of truth for score
   const live = await fetchCompetitorsNearby({
     lat: v.lat,

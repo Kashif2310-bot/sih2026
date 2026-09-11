@@ -5,6 +5,11 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,7 +17,7 @@ import {
 } from 'recharts'
 import { CloudRain, Store, Users, ArrowRight } from 'lucide-react'
 import { useApp } from '../state/useApp'
-import { VILLAGES, BUSINESS_META } from '../data/villages'
+import { BUSINESS_META } from '../data/villages'
 import { getUpcomingEvents } from '../data/festivals'
 import { VillageMap } from '../components/VillageMap'
 import { format } from 'date-fns'
@@ -20,14 +25,14 @@ import { format } from 'date-fns'
 export function PulsePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, weather, week, mandi, score, loading } = useApp()
+  const { profile, location, weather, week, mandi, score, loading } = useApp()
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
 
   if (!profile && !loading) return <Navigate to="/scan" replace />
-  if (!profile || !weather || !score || !mandi) {
+  if (!profile || !weather || !score || !location) {
     return (
       <div className="glass rounded-2xl p-8 text-center text-ink/60">
         {kn ? 'ಸ್ಕ್ಯಾನ್ ಚಾಲನೆಯಲ್ಲಿದೆ…' : 'Running hyperlocal scan…'}
@@ -35,20 +40,56 @@ export function PulsePage() {
     )
   }
 
-  const village = VILLAGES.find((v) => v.id === profile.villageId)!
-  const events = getUpcomingEvents(village.id)
+  const events = location.hasCuratedSignals ? getUpcomingEvents(location.id) : []
+  const placeName = kn ? location.nameKn : location.name
+  const placeDistrict = kn ? location.districtKn : location.district
+  const weatherUnavailable = weather.source === 'unavailable'
   const chartData = week.map((d) => ({
     day: format(new Date(d.date), 'EEE'),
     max: d.max,
     rain: d.rain,
   }))
 
+  const componentDefs = [
+    {
+      key: 'demand',
+      label: kn ? 'ಬೇಡಿಕೆ' : 'Demand',
+      value: score.demand,
+      reason: kn ? score.rationaleKn[0] : score.rationale[0],
+    },
+    {
+      key: 'competitionGap',
+      label: kn ? 'ಸ್ಪರ್ಧಾ ಅಂತರ' : 'Comp. gap',
+      value: score.competitionGap,
+      reason: kn ? score.rationaleKn[1] : score.rationale[1],
+    },
+    {
+      key: 'weatherFit',
+      label: kn ? 'ಹವಾಮಾನ' : 'Weather',
+      value: score.weatherFit,
+      reason: kn ? score.rationaleKn[2] : score.rationale[2],
+    },
+    {
+      key: 'financialFit',
+      label: kn ? 'ಹಣಕಾಸು' : 'Finance',
+      value: score.financialFit,
+      reason: kn ? score.rationaleKn[3] : score.rationale[3],
+    },
+    {
+      key: 'eligibility',
+      label: kn ? 'ಅರ್ಹತೆ' : 'Eligibility',
+      value: score.eligibility,
+      reason: kn ? score.rationaleKn[4] : score.rationale[4],
+    },
+  ] as const
+  const NEAR_MAX_THRESHOLD = 85
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-sky">
-            {kn ? village.nameKn : village.name} · {kn ? village.districtKn : village.district}
+            {placeName} · {placeDistrict}
           </p>
           <h1 className="font-display text-3xl font-bold text-forest">{t('pulse.title')}</h1>
           <p className="mt-1 text-sm text-ink/60">
@@ -65,11 +106,21 @@ export function PulsePage() {
             <Users className="h-4 w-4" /> {t('pulse.radius')}
           </div>
           <div className="h-64 overflow-hidden rounded-xl">
-            <VillageMap lat={village.lat} lng={village.lng} name={kn ? village.nameKn : village.name} />
+            <VillageMap
+              lat={location.lat}
+              lng={location.lng}
+              name={placeName}
+              radiusKm={location.radiusKm}
+              competitors={location.competitors}
+            />
           </div>
           <p className="mt-3 text-sm text-ink/70">
-            {kn ? village.notesKn : village.notes} · ~{(village.households * 1.8 + village.population * 0.35).toFixed(0)}{' '}
-            {kn ? 'ಗ್ರಾಹಕ ವ್ಯಾಪ್ತಿ' : 'est. consumers in ring'}
+            {kn ? location.notesKn : location.notes}
+            {location.households != null && location.population != null
+              ? ` · ~${(location.households * 1.8 + location.population * 0.35).toFixed(0)} ${
+                  kn ? 'ಗ್ರಾಹಕ ವ್ಯಾಪ್ತಿ' : 'est. consumers in ring'
+                }`
+              : ''}
           </p>
         </div>
 
@@ -78,14 +129,23 @@ export function PulsePage() {
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-forest">
               <CloudRain className="h-4 w-4" /> {t('pulse.weather')}
             </div>
-            <p className="text-2xl font-bold text-ink">
-              {Math.round(weather.tempMax)}° / {Math.round(weather.tempMin)}°
-            </p>
-            <p className="text-sm text-ink/65">{kn ? weather.summaryKn : weather.summary}</p>
-            <p className="mt-1 text-xs text-sky">
-              {kn ? 'ಮಳೆ ಸಂಭವ' : 'Rain chance'} {weather.precipProb}% · {weather.precipMm} mm
-            </p>
-            {chartData.length > 0 && (
+            {weatherUnavailable ? (
+              <>
+                <p className="text-lg font-bold text-ink">{kn ? weather.summaryKn : weather.summary}</p>
+                <p className="mt-1 text-sm text-ink/65">{t('pulse.weatherUnavailable')}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-ink">
+                  {Math.round(weather.tempMax)}° / {Math.round(weather.tempMin)}°
+                </p>
+                <p className="text-sm text-ink/65">{kn ? weather.summaryKn : weather.summary}</p>
+                <p className="mt-1 text-xs text-sky">
+                  {kn ? 'ಮಳೆ ಸಂಭವ' : 'Rain chance'} {weather.precipProb}% · {weather.precipMm} mm
+                </p>
+              </>
+            )}
+            {chartData.length > 0 && !weatherUnavailable && (
               <div className="mt-4 h-28">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
@@ -104,17 +164,23 @@ export function PulsePage() {
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-forest">
               <Store className="h-4 w-4" /> {t('pulse.mandi')}
             </div>
-            <p className="text-lg font-bold">
-              {mandi.commodity} · {mandi.modalPrice} {mandi.unit}
-            </p>
-            <p className="text-xs text-ink/55">{mandi.market}</p>
-            <p
-              className={`mt-2 text-sm font-semibold ${
-                mandi.trend === 'up' ? 'text-leaf' : mandi.trend === 'down' ? 'text-danger' : 'text-ink/60'
-              }`}
-            >
-              {mandi.trend === 'up' ? '▲' : mandi.trend === 'down' ? '▼' : '●'} {mandi.changePct}%
-            </p>
+            {mandi ? (
+              <>
+                <p className="text-lg font-bold">
+                  {mandi.commodity} · {mandi.modalPrice} {mandi.unit}
+                </p>
+                <p className="text-xs text-ink/55">{mandi.market}</p>
+                <p
+                  className={`mt-2 text-sm font-semibold ${
+                    mandi.trend === 'up' ? 'text-leaf' : mandi.trend === 'down' ? 'text-danger' : 'text-ink/60'
+                  }`}
+                >
+                  {mandi.trend === 'up' ? '▲' : mandi.trend === 'down' ? '▼' : '●'} {mandi.changePct}%
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-ink/65">{t('pulse.mandiUnavailable')}</p>
+            )}
           </div>
         </div>
       </div>
@@ -146,27 +212,47 @@ export function PulsePage() {
       </div>
 
       <div className="glass rounded-2xl p-5">
-        <h3 className="font-semibold text-forest">{kn ? 'ಲೋಕ್‌ಸ್ಕೋರ್ ವಿಭಜನೆ' : 'LokScore breakdown'}</h3>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {(
-            [
-              [kn ? 'ಬೇಡಿಕೆ' : 'Demand', score.demand],
-              [kn ? 'ಸ್ಪರ್ಧಾ ಅಂತರ' : 'Comp. gap', score.competitionGap],
-              [kn ? 'ಹವಾಮಾನ' : 'Weather', score.weatherFit],
-              [kn ? 'ಹಣಕಾಸು' : 'Finance', score.financialFit],
-              [kn ? 'ಅರ್ಹತೆ' : 'Eligibility', score.eligibility],
-            ] as const
-          ).map(([label, val]) => (
-            <div key={label} className="rounded-xl bg-mist/70 px-3 py-3 text-center">
-              <p className="text-xs text-ink/55">{label}</p>
-              <p className="text-xl font-bold text-forest">{val}</p>
-            </div>
-          ))}
+        <h3 className="font-semibold text-forest">{t('pulse.breakdown')}</h3>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart
+                data={componentDefs}
+                outerRadius="62%"
+                margin={{ top: 16, right: 28, bottom: 16, left: 28 }}
+              >
+                <PolarGrid stroke="#0b3d2e22" />
+                <PolarAngleAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: '#0b3d2ecc' }}
+                />
+                <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9 }} axisLine={false} />
+                <Radar
+                  name={t('pulse.breakdown')}
+                  dataKey="value"
+                  stroke="#0b3d2e"
+                  fill="#1f6b4f"
+                  fillOpacity={0.35}
+                />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-2 gap-2 content-start sm:grid-cols-3 md:grid-cols-2">
+            {componentDefs.map((c) => (
+              <div key={c.key} className="rounded-xl bg-mist/70 px-3 py-3 text-center">
+                <p className="text-xs text-ink/55">{c.label}</p>
+                <p className="text-xl font-bold text-forest">{c.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
         <ul className="mt-4 space-y-1 text-sm text-ink/70">
-          {(kn ? score.rationaleKn : score.rationale).map((r) => (
-            <li key={r}>• {r}</li>
-          ))}
+          {componentDefs
+            .filter((c) => c.value < NEAR_MAX_THRESHOLD)
+            .map((c) => (
+              <li key={c.key}>• {c.reason}</li>
+            ))}
         </ul>
         <p className="mt-3 text-sm font-semibold text-sky">
           {kn ? 'ಅನುಮೋದನಾ ಕೋರಂ' : 'Sanction quorum'}: {score.quorumRequired}/{score.quorumPool}

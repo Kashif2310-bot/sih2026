@@ -2,6 +2,12 @@
 
 import type { BusinessCategory } from '../data/villages'
 
+/**
+ * LokScore component weights — product-locked, must sum to 1.
+ *   demand 25% · competition gap 20% · weather 15% · finance 25% · eligibility 15%
+ * Quorum (80 → 2-of-3, 60 → 3-of-5, else 4-of-5 + mentor) keys off the weighted total.
+ * Do not change these values without an explicit product decision.
+ */
 export const LOKSCORE_WEIGHTS = {
   demand: 0.25,
   competitionGap: 0.2,
@@ -21,15 +27,19 @@ export const REACH_KM = {
   default: 7,
 } as const
 
-/** Moratorium interest is billed each moratorium quarter; principal is not capitalised. */
-export const MORATORIUM_INTEREST_POLICY = 'payable_not_capitalised' as const
+/**
+ * Single moratorium convention (capitalize_into_principal):
+ * interest accrues each moratorium quarter and is capitalised into principal
+ * at the start of repayment. No instalment is billed during moratorium.
+ */
+export const MORATORIUM_INTEREST_POLICY = 'capitalize_into_principal' as const
 
 export const MORATORIUM_POLICY_LABEL = {
-  en: 'Moratorium policy: interest is payable each moratorium quarter; principal is not capitalised into the loan.',
-  kn: 'ಮೊರಟೋರಿಯಂ ನೀತಿ: ಪ್ರತಿ ಮೊರಟೋರಿಯಂ ತ್ರೈಮಾಸಿಕದಲ್ಲಿ ಬಡ್ಡಿ ಪಾವತಿ; ಮೂಲಧನ ಸಾಲಕ್ಕೆ ಸೇರಿಸಲಾಗುವುದಿಲ್ಲ.',
+  en: 'Moratorium policy (capitalize_into_principal): interest accrues during the moratorium and is capitalised into principal at the start of repayment. No instalment is billed in moratorium quarters.',
+  kn: 'ಮೊರಟೋರಿಯಂ ನೀತಿ (capitalize_into_principal): ಮೊರಟೋರಿಯಂ ಕಾಲದಲ್ಲಿ ಬಡ್ಡಿ ಸೇರಿ, ಮರುಪಾವತಿ ಆರಂಭದಲ್ಲಿ ಮೂಲಧನಕ್ಕೆ ಸೇರಿಸಲಾಗುತ್ತದೆ. ಮೊರಟೋರಿಯಂ ತ್ರೈಮಾಸಿಕಗಳಲ್ಲಿ ಕಂತು ವಿಧಿಸಲಾಗುವುದಿಲ್ಲ.',
 } as const
 
-/** Working-capital cycle length (months of opex to hold). */
+/** Working-capital cycle length (months of opex to hold). Short: dairy/food; longer: textiles. */
 export const WC_CYCLE_MONTHS: Record<BusinessCategory, number> = {
   dairy: 1.5,
   food: 1,

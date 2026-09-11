@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion, MotionConfig } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight, MapPinned, ShieldCheck, Sparkles } from 'lucide-react'
@@ -8,6 +8,9 @@ export function LandingPage() {
   const kn = i18n.language === 'kn'
 
   return (
+    // reducedMotion="user" makes framer-motion honor prefers-reduced-motion by
+    // disabling transform/scale animations for those users (opacity still fades).
+    <MotionConfig reducedMotion="user">
     <div className="space-y-16">
       <section className="relative overflow-hidden rounded-[2rem] border border-forest/10 bg-forest text-white shadow-xl shadow-forest/20">
         <div
@@ -160,5 +163,6 @@ export function LandingPage() {
         </div>
       </section>
     </div>
+    </MotionConfig>
   )
 }

@@ -1,34 +1,94 @@
+import { useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Users } from 'lucide-react'
 import { useApp } from '../state/useApp'
-import { VILLAGES } from '../data/villages'
 import { buildFeasibility } from '../lib/feasibility'
+import { REACH_KM } from '../lib/config'
+import { distanceKm } from '../lib/geo'
+import { VillageMap } from '../components/VillageMap'
 
 export function ReportPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, weather, mandi, score } = useApp()
+  const { profile, location, weather, mandi, score, plan } = useApp()
+  const [radiusKm, setRadiusKm] = useState(location?.radiusKm ?? REACH_KM.default)
 
-  if (!profile || !weather || !mandi || !score) return <Navigate to="/scan" replace />
+  // Competitors were fetched once at scan time within location.radiusKm. Filtering down
+  // (radiusKm <= location.radiusKm) is exact; going wider only shows what's already known.
+  const competitorsInRadius = useMemo(() => {
+    if (!location) return []
+    return location.competitors.filter(
+      (c) => distanceKm(location.lat, location.lng, c.lat, c.lng) <= radiusKm,
+    )
+  }, [location, radiusKm])
 
-  const village = VILLAGES.find((v) => v.id === profile.villageId)!
+  if (!profile || !weather || !score || !location || !plan) return <Navigate to="/scan" replace />
+
   const report = buildFeasibility({
     profile,
-    village,
+    location,
     weather,
     mandi,
+    plan,
     lang: kn ? 'kn' : 'en',
   })
+
+  // Area-scaled estimate: original reach was computed for location.radiusKm; scale by
+  // area ratio for the slider value. Never fabricated when population data is absent.
+  const areaRatio = (radiusKm * radiusKm) / (location.radiusKm * location.radiusKm)
+  const scaledReach = report.reach != null ? Math.round(report.reach * areaRatio) : null
+  const beyondScan = radiusKm > location.radiusKm
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold text-forest">{t('report.title')}</h1>
         <p className="mt-1 text-sm text-ink/60">
-          {kn ? village.nameKn : village.name} · LokScore {score.total} ({score.grade})
+          {kn ? location.nameKn : location.name} · LokScore {score.total} ({score.grade})
         </p>
       </div>
+
+      <Block title={t('report.reachMap')}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex-1 text-sm font-medium text-ink/70">
+            {t('report.radiusLabel')}: <span className="font-bold text-forest">{radiusKm} km</span>
+            <input
+              type="range"
+              min={REACH_KM.min}
+              max={REACH_KM.max}
+              step={0.5}
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(Number(e.target.value))}
+              aria-label={t('report.radiusLabel')}
+              aria-valuetext={`${radiusKm} km`}
+              className="mt-2 block w-full accent-forest"
+            />
+          </label>
+          <div className="rounded-xl bg-mist px-3 py-2 text-right">
+            <p className="text-[10px] uppercase text-ink/50">{t('report.reachEstimate')}</p>
+            <p className="font-display text-lg font-bold text-forest">
+              {scaledReach != null ? scaledReach.toLocaleString('en-IN') : t('report.reachUnavailable')}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 h-64 overflow-hidden rounded-xl">
+          <VillageMap
+            lat={location.lat}
+            lng={location.lng}
+            name={kn ? location.nameKn : location.name}
+            radiusKm={radiusKm}
+            competitors={competitorsInRadius}
+          />
+        </div>
+        <p className="mt-3 flex items-center gap-2 text-xs text-ink/60">
+          <Users className="h-3.5 w-3.5" />
+          {location.competitorQueryOk
+            ? `${competitorsInRadius.length} ${t('report.mapCompetitors')}`
+            : t('report.mapUnavailable')}
+          {beyondScan && location.competitorQueryOk ? ` — ${t('report.beyondScanRadius')}` : ''}
+        </p>
+      </Block>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Block title={t('report.swot')}>
@@ -118,9 +178,11 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 
 function PriceChip({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div className={`flex-1 rounded-xl px-2 py-3 ${highlight ? 'bg-forest text-white' : 'bg-mist'}`}>
-      <p className={`text-[10px] uppercase ${highlight ? 'text-white/70' : 'text-ink/50'}`}>{label}</p>
-      <p className="font-bold">₹{value}</p>
+    <div
+      className={`flex-1 rounded-xl px-2 py-3 ${highlight ? 'bg-forest text-white' : 'bg-mist text-ink'}`}
+    >
+      <p className="text-[10px] uppercase tracking-wide opacity-70">{label}</p>
+      <p className="mt-1 font-display text-lg font-bold">₹{value}</p>
     </div>
   )
 }
@@ -139,19 +201,19 @@ function SwotGrid({
   kn: boolean
 }) {
   const cells = [
-    { title: kn ? 'ಶಕ್ತಿ' : 'Strengths', items: s, bg: 'bg-[#e8f6ee]' },
-    { title: kn ? 'ದುರ್ಬಲತೆ' : 'Weaknesses', items: w, bg: 'bg-[#fff7e8]' },
-    { title: kn ? 'ಅವಕಾಶ' : 'Opportunities', items: o, bg: 'bg-[#e8f1f8]' },
-    { title: kn ? 'ಅಪಾಯ' : 'Threats', items: t, bg: 'bg-[#ffece8]' },
-  ]
+    [kn ? 'ಬಲ' : 'S', s, 'bg-[#e8f6ee]'],
+    [kn ? 'ದುರ್ಬಲ' : 'W', w, 'bg-[#fff7e8]'],
+    [kn ? 'ಅವಕಾಶ' : 'O', o, 'bg-[#e8f1f8]'],
+    [kn ? 'ಅಪಾಯ' : 'T', t, 'bg-[#fff1ed]'],
+  ] as const
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      {cells.map((c) => (
-        <div key={c.title} className={`rounded-xl ${c.bg} p-3`}>
-          <p className="text-xs font-bold uppercase tracking-wide text-ink/55">{c.title}</p>
-          <ul className="mt-2 space-y-1 text-xs leading-relaxed text-ink/80">
-            {c.items.map((i) => (
-              <li key={i}>• {i}</li>
+      {cells.map(([label, items, bg]) => (
+        <div key={label} className={`rounded-xl ${bg} p-3`}>
+          <p className="text-xs font-bold text-ink/50">{label}</p>
+          <ul className="mt-1 space-y-1 text-xs text-ink/80">
+            {items.slice(0, 3).map((item) => (
+              <li key={item}>• {item}</li>
             ))}
           </ul>
         </div>

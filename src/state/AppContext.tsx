@@ -1,19 +1,23 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { buildSchemePlan } from '../lib/finance'
 import { computeLokScore, type EntrepreneurProfile, type WeatherSignal } from '../lib/lokScore'
 import { fetchMandiSignal } from '../lib/mandi'
 import { fetchWeather, fetchWeekTemps, unavailableWeather } from '../lib/weather'
-import {
-  buildAttestation,
-  createVerifierPool,
-  quorumMet,
-  signAttestation,
-  verifySignature,
-} from '../lib/multisig'
+import type { Verifier } from '../lib/multisig'
 import { resolveCuratedVillage, resolveLiveLocation, type ResolvedLocation } from '../lib/resolveLocation'
 import { buildWorkingCapital, type WorkingCapitalPlan } from '../lib/workingCapital'
 import { AppCtx, type AppState } from './app-state'
 import { REACH_KM } from '../lib/config'
+
+// ethers (via multisig.ts) is real ECDSA crypto and not cheap to parse/execute,
+// so it's dynamically imported on first scan rather than bundled into the
+// eagerly-loaded app shell (landing page never touches signatures at all).
+// Cached so repeated scans don't re-trigger the network request.
+let multisigModulePromise: Promise<typeof import('../lib/multisig')> | null = null
+function loadMultisig() {
+  if (!multisigModulePromise) multisigModulePromise = import('../lib/multisig')
+  return multisigModulePromise
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<EntrepreneurProfile | null>(null)
@@ -30,7 +34,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [attestation, setAttestation] = useState<AppState['attestation']>(null)
   const [signatures, setSignatures] = useState<AppState['signatures']>([])
   const [escrowReleased, setEscrowReleased] = useState(false)
-  const verifiers = useMemo(() => createVerifierPool(), [])
+  const [verifiers, setVerifiers] = useState<Verifier[]>([])
+  const multisigRef = useRef<Awaited<ReturnType<typeof loadMultisig>> | null>(null)
 
   const setProfileAndScan = useCallback(async (p: EntrepreneurProfile) => {
     setLoading(true)
@@ -77,8 +82,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         w = unavailableWeather()
         wk = []
-        setError('Live weather unavailable — scores use an explicit unavailable weather signal (not fabricated).')
-        setErrorKn('ಲೈವ್ ಹವಾಮಾನ ಲಭ್ಯವಿಲ್ಲ — ಕಲ್ಪಿತ ಹವಾಮಾನ ಬಳಸಿಲ್ಲ.')
       }
 
       const m = await fetchMandiSignal(resolved, p.category)
@@ -89,7 +92,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         mandi: m,
         plan: scheme,
       })
-      const att = buildAttestation({
+
+      const multisig = await loadMultisig()
+      multisigRef.current = multisig
+      const pool = multisig.createVerifierPool()
+      const att = multisig.buildAttestation({
         entrepreneurName: p.name,
         villageId: resolved.id,
         lokScore: lok.total,
@@ -108,6 +115,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlan(scheme)
       setWorkingCapital(wc)
       setScore(lok)
+      setVerifiers(pool)
       setAttestation(att)
       return true
     } catch (e) {
@@ -121,7 +129,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signAs = useCallback(
     async (verifierId: string) => {
-      if (!attestation || !score) return
+      if (!attestation || !score || !multisigRef.current) return
+      const { signAttestation, verifySignature } = multisigRef.current
       const verifier = verifiers.find((v) => v.id === verifierId)
       if (!verifier) return
       if (signatures.some((s) => s.verifierId === verifierId)) return
@@ -135,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const releaseEscrow = useCallback(() => {
-    if (!score || !quorumMet(score, signatures)) return
+    if (!score || !multisigRef.current || !multisigRef.current.quorumMet(score, signatures)) return
     setEscrowReleased(true)
   }, [score, signatures])
 
@@ -150,6 +159,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setScore(null)
     setAttestation(null)
     setSignatures([])
+    setVerifiers([])
     setEscrowReleased(false)
     setError(null)
     setErrorKn(null)
