@@ -144,5 +144,28 @@ Commit: `1cccd66`
 
 **Verified:** `npm run build` clean, `npm test` 37/37, all 4 new boundary-path tests pass, demo-path spec still passes.
 
-Commit: `pending`
+Commit: `e377c56`
+
+---
+
+# FINISH-LINE PASS — 2026-09-12 (continuing on autonomous/overnight-build)
+
+New session, building on the completed 8-commit branch above. Re-verifying skeptically rather than trusting the prior "done" claims, per instructions.
+
+## Step 0 — starting state confirmed
+
+`git status`: clean tree. `git log --oneline -10`: 8 commits (`28bf536` down to `14d59fe`), matches the prior end-of-run summary exactly.
+
+## Step 1 — independent re-verification
+
+**Clean rebuild from scratch:** `rm -rf node_modules dist`, then `npm install` (207 packages; reverted an incidental `package-lock.json` diff npm produced, same harmless normalization noise as last time), `npm run build` (clean, same 500kB chunk-size warning as before — that's step 2's job), `npx vitest run` — **37/37 pass** from a genuinely clean install, not incremental. Ran the full Playwright suite (`demo-path` + 4 `boundary-path` specs) against a real dev server — **5/5 pass**.
+
+**Read the actual code, not just the log's claims:**
+- `finance.ts`: confirmed for real — `annuityEmiPaise` does exact BigInt rational arithmetic for `EMI = P·r·(1+r)^n / ((1+r)^n − 1)` with `r` as an exact `tenths/4000` fraction (no floating-point drift in the compounding), `quarterlyInterestPaise` and `ninetyPercentPaise` are pure integer math, the final repayment quarter is set to `remaining + interest` and `remaining` is zeroed explicitly (not just close-to-zero) — so `closingPrincipalPaise` is exactly 0, matching the test assertion. This holds up.
+- `weather.ts`: `unavailableWeather()` returns explicit sentinel values (`tempMax/tempMin: 0`, `code: -1`, `source: 'unavailable'`) rather than any invented plausible-looking temperature, and both `/pulse` and `/report` gate their display on `weather.source === 'unavailable'` before ever showing a number. Holds up.
+- `SanctionPage.tsx`: escrow release button and post-release panel both read from `t('sanction.release')`/`t('sanction.simulatedRelease')`/`t('sanction.escrowSketch')`, which resolve to "Simulate escrow release" / "Simulated release — no blockchain transaction" / "UI sketch only... nothing moves on-chain or to a bank." Holds up.
+
+**Manually exercised the live-location feature with Shivamogga, Karnataka** — a real town, not one of the 5 seed villages (Dinka/Kabbenur/Sulebhavi/Kunigal/Sakleshpur) — via a throwaway Playwright script (written, run, and deleted; not part of the diff). Result: genuinely geocoded to "Shivamogga · Shivamogga taluk" via Nominatim, a real Overpass query returned "1 similar POIs within 7 km," real Open-Meteo weather (31°/22°, Overcast), and the page correctly said "Population/PPI not available — not fabricated" and "Mandi signal unavailable for this location (not fabricated)" rather than silently reusing any seed village's numbers — confirmed none of the 5 seed village names appeared anywhere on the page. This claim holds up under a fresh, adversarial check with a town the prior session never tried.
+
+**Conclusion: all of the prior session's "done" claims for item 1 hold up under skeptical re-verification. No fixes needed here.** Proceeding to step 2.
 
