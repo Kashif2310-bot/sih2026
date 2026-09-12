@@ -68,6 +68,11 @@ describe('extractProfileFromMessage — edge cases', () => {
   it('handles nonsense/garbled input gracefully', () => {
     expect(() => extractProfileFromMessage('asdkjasjd 123 ###@@ %%%')).not.toThrow()
   })
+
+  it('recognizes "retail business" phrasing, not just "retail shop"', () => {
+    const extracted = extractProfileFromMessage('I want to start a retail business requiring ₹12 lakh.')
+    expect(extracted.businessSector).toBe('retail')
+  })
 })
 
 describe('mergeProfile / extractAndMerge', () => {

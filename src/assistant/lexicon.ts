@@ -52,7 +52,7 @@ export const SECTOR_KEYWORDS: Record<string, string[]> = {
   pottery: ['pottery', 'potter', 'terracotta'],
   food_processing: ['food processing', 'papad', 'pickle making', 'bakery', 'catering', 'snacks business', 'food unit'],
   textiles: ['textile', 'weaving', 'handloom', 'sari business'],
-  retail: ['retail shop', 'kirana', 'grocery store', 'general store', 'shop business'],
+  retail: ['retail shop', 'retail business', 'retail store', 'kirana', 'grocery store', 'grocery', 'general store', 'shop business'],
   trading: ['trading business', 'wholesale', 'distributor'],
   manufacturing: ['manufacturing', 'factory', 'production unit'],
   services: ['repair shop', 'salon', 'beauty parlour', 'service business'],
