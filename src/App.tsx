@@ -16,6 +16,9 @@ const SanctionPage = lazy(() =>
   import('./pages/SanctionPage').then((m) => ({ default: m.SanctionPage })),
 )
 const ExportPage = lazy(() => import('./pages/ExportPage').then((m) => ({ default: m.ExportPage })))
+const AssistantPage = lazy(() =>
+  import('./pages/AssistantPage').then((m) => ({ default: m.AssistantPage })),
+)
 
 function RouteFallback() {
   // Must stay bilingual: the Suspense fallback is real UI a Kannada-mode
@@ -38,6 +41,7 @@ export default function App() {
               <Route path="/finance" element={<FinancePage />} />
               <Route path="/sanction" element={<SanctionPage />} />
               <Route path="/export" element={<ExportPage />} />
+              <Route path="/assistant" element={<AssistantPage />} />
             </Routes>
           </Suspense>
         </Shell>
