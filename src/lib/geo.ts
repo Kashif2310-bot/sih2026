@@ -120,6 +120,48 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeH
   }
 }
 
+async function queryOverpassEndpoint(
+  endpoint: string,
+  query: string,
+): Promise<CompetitorPoi[]> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), OVERPASS_TIMEOUT_MS)
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(query)}`,
+    })
+    if (!res.ok) throw new Error(`Overpass endpoint returned ${res.status}`)
+    const data = (await res.json()) as {
+      elements?: Array<{
+        id: number
+        lat?: number
+        lon?: number
+        center?: { lat: number; lon: number }
+        tags?: Record<string, string>
+      }>
+    }
+    return (data.elements ?? [])
+      .map((el) => {
+        const lat = el.lat ?? el.center?.lat
+        const lng = el.lon ?? el.center?.lon
+        if (lat == null || lng == null) return null
+        return {
+          id: String(el.id),
+          name: el.tags?.name ?? el.tags?.shop ?? el.tags?.amenity ?? 'Unnamed',
+          lat,
+          lng,
+          tags: el.tags ?? {},
+        }
+      })
+      .filter((x): x is CompetitorPoi => x != null)
+  } finally {
+    clearTimeout(t)
+  }
+}
+
 export async function fetchCompetitorsNearby(input: {
   lat: number
   lng: number
@@ -133,48 +175,17 @@ export async function fetchCompetitorsNearby(input: {
     .replaceAll('{lng}', String(input.lng))
   const query = `[out:json][timeout:25];(${filter});out center 80;`
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), OVERPASS_TIMEOUT_MS)
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-      })
-      if (!res.ok) continue
-      const data = (await res.json()) as {
-        elements?: Array<{
-          id: number
-          lat?: number
-          lon?: number
-          center?: { lat: number; lon: number }
-          tags?: Record<string, string>
-        }>
-      }
-      const pois: CompetitorPoi[] = (data.elements ?? [])
-        .map((el) => {
-          const lat = el.lat ?? el.center?.lat
-          const lng = el.lon ?? el.center?.lon
-          if (lat == null || lng == null) return null
-          return {
-            id: String(el.id),
-            name: el.tags?.name ?? el.tags?.shop ?? el.tags?.amenity ?? 'Unnamed',
-            lat,
-            lng,
-            tags: el.tags ?? {},
-          }
-        })
-        .filter((x): x is CompetitorPoi => x != null)
-      return { ok: true, pois }
-    } catch {
-      // try next endpoint
-    } finally {
-      clearTimeout(t)
-    }
+  // Race both mirrors in parallel (not sequential try-then-fallback) so a
+  // dead/slow endpoint never doubles the wait — worst case stays bounded to
+  // one OVERPASS_TIMEOUT_MS, not one per endpoint. Critical for a live demo.
+  try {
+    const pois = await Promise.any(
+      OVERPASS_ENDPOINTS.map((endpoint) => queryOverpassEndpoint(endpoint, query)),
+    )
+    return { ok: true, pois }
+  } catch {
+    return { ok: false, pois: [], error: 'Overpass unreachable or returned no data' }
   }
-  return { ok: false, pois: [], error: 'Overpass unreachable or returned no data' }
 }
 
 /** Density 0–1 from POI count within radius (saturating at ~12 competitors). */

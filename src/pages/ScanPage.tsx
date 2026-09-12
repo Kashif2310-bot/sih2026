@@ -5,9 +5,29 @@ import { BUSINESS_META, VILLAGES, type BusinessCategory } from '../data/villages
 import { defaultProfile } from '../lib/demoProfile'
 import { useApp } from '../state/useApp'
 import type { EntrepreneurProfile } from '../lib/lokScore'
-import { Loader2, MapPin, Crosshair } from 'lucide-react'
+import { Loader2, MapPin, Crosshair, WifiOff } from 'lucide-react'
 import { REACH_KM } from '../lib/config'
 import { NSFDC } from '../lib/config'
+
+const DEMO_MODE_STORAGE_KEY = 'lokpulse:offlineDemoMode'
+
+function readStoredDemoMode(): boolean {
+  try {
+    return localStorage.getItem(DEMO_MODE_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeStoredDemoMode(value: boolean) {
+  try {
+    if (value) localStorage.setItem(DEMO_MODE_STORAGE_KEY, '1')
+    else localStorage.removeItem(DEMO_MODE_STORAGE_KEY)
+  } catch {
+    // Private-browsing / storage-blocked contexts — the toggle still works
+    // for the current page load, it just won't persist across a reload.
+  }
+}
 
 export function ScanPage() {
   const { t, i18n } = useTranslation()
@@ -17,9 +37,23 @@ export function ScanPage() {
   const { setProfileAndScan, loading, error, errorKn } = useApp()
   const demo = params.get('demo') === '1'
 
-  const [form, setForm] = useState<EntrepreneurProfile>(() => defaultProfile())
+  const [form, setForm] = useState<EntrepreneurProfile>(() => ({
+    ...defaultProfile(),
+    demoMode: readStoredDemoMode(),
+  }))
   const [geoBusy, setGeoBusy] = useState(false)
   const [localErr, setLocalErr] = useState<string | null>(null)
+
+  const toggleDemoMode = (on: boolean) => {
+    writeStoredDemoMode(on)
+    setForm((f) => ({
+      ...f,
+      demoMode: on,
+      // Offline Demo Mode guarantees zero network calls — force curated
+      // (seeded-village) mode so the live-search UI can't be used while it's on.
+      locationMode: on ? 'curated' : f.locationMode,
+    }))
+  }
 
   const villages = useMemo(() => VILLAGES, [])
 
@@ -98,8 +132,32 @@ export function ScanPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="font-display text-3xl font-bold text-forest">{t('wizard.title')}</h1>
-      <p className="mt-2 text-ink/65">{t('wizard.subtitle')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-forest">{t('wizard.title')}</h1>
+          <p className="mt-2 text-ink/65">{t('wizard.subtitle')}</p>
+        </div>
+        <label
+          className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+            form.demoMode
+              ? 'border-gold bg-gold/20 text-ink'
+              : 'border-forest/20 bg-white text-ink/60'
+          }`}
+          title={t('wizard.offlineDemoModeHint')}
+        >
+          <WifiOff className="h-3.5 w-3.5" />
+          {t('wizard.offlineDemoMode')}
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5"
+            checked={!!form.demoMode}
+            onChange={(e) => toggleDemoMode(e.target.checked)}
+          />
+        </label>
+      </div>
+      {form.demoMode && (
+        <p className="mt-2 text-xs font-semibold text-clay">{t('wizard.offlineDemoModeHint')}</p>
+      )}
       {demo && (
         <p className="mt-2 text-xs font-semibold text-sky">{t('wizard.demoHint')}</p>
       )}
@@ -187,10 +245,14 @@ export function ScanPage() {
               />
               {t('wizard.curated')}
             </label>
-            <label className="inline-flex items-center gap-2">
+            <label
+              className={`inline-flex items-center gap-2 ${form.demoMode ? 'opacity-40' : ''}`}
+              title={form.demoMode ? t('wizard.offlineDemoModeHint') : undefined}
+            >
               <input
                 type="radio"
                 name="locMode"
+                disabled={form.demoMode}
                 checked={form.locationMode === 'live'}
                 onChange={() => update('locationMode', 'live')}
               />

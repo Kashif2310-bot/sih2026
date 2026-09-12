@@ -21,6 +21,8 @@ export interface EntrepreneurProfile {
   liveLat?: number
   liveLng?: number
   radiusKm: number
+  /** Presenter safety switch: skip all live network calls, seeded villages only. */
+  demoMode?: boolean
 }
 
 export interface WeatherSignal {

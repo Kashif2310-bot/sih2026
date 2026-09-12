@@ -47,7 +47,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       let resolved: ResolvedLocation
-      if (p.locationMode === 'live') {
+      // Demo Mode is a presenter safety switch: even if locationMode somehow
+      // ended up 'live' (shouldn't happen — the UI locks it to curated),
+      // never attempt a live call once it's on. Zero network calls, seeded
+      // villages only.
+      if (p.locationMode === 'live' && !p.demoMode) {
         const live = await resolveLiveLocation({
           query: p.liveQuery,
           lat: p.liveLat,
@@ -62,7 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         resolved = live.location
       } else {
-        resolved = await resolveCuratedVillage(p.villageId, p.category, radiusKm)
+        resolved = await resolveCuratedVillage(p.villageId, p.category, radiusKm, p.demoMode)
       }
 
       const scheme = buildSchemePlan(p.availableMargin)
@@ -74,14 +78,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       let w: WeatherSignal
       let wk: AppState['week'] = []
-      try {
-        ;[w, wk] = await Promise.all([
-          fetchWeather(resolved.lat, resolved.lng),
-          fetchWeekTemps(resolved.lat, resolved.lng),
-        ])
-      } catch {
+      if (p.demoMode) {
+        // Demo Mode: don't even attempt the call.
         w = unavailableWeather()
         wk = []
+      } else {
+        try {
+          ;[w, wk] = await Promise.all([
+            fetchWeather(resolved.lat, resolved.lng),
+            fetchWeekTemps(resolved.lat, resolved.lng),
+          ])
+        } catch {
+          // Covers both a real failure and the 2.5s abort timeout inside
+          // fetchWeather/fetchWeekTemps — either way, fail fast to the
+          // honest "unavailable" state rather than hanging.
+          w = unavailableWeather()
+          wk = []
+        }
       }
 
       const m = await fetchMandiSignal(resolved, p.category)

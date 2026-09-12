@@ -17,6 +17,8 @@ npm run test:e2e   # Playwright end-to-end tests (needs a dev/preview server; se
 
 **Demo path:** `/scan` → fill in the default profile (or use `/scan?demo=1` to pre-fill it) — SC woman, Dinka village, dairy, ₹1,00,000 available margin — → **Run hyperlocal scan** → walk **Pulse → Report → Finance → Sanction**. This should always produce: project cost **₹10,00,000**, max loan **₹9,00,000**, **NSFDC Term Loan Scheme**, and a LokScore-driven signing quorum on `/sanction`. From `/sanction`, **Export** produces a single printable report (`window.print()` → Save as PDF) combining every screen's output plus a document checklist.
 
+> **Presenting live? Flip on "Offline Demo Mode"** (top-right corner of `/scan`) if venue wifi is unreliable. It forces the seeded-village path and skips every live network call (weather, geocoding, competitor lookup) entirely, so the scan completes near-instantly with zero network dependency — a safe fallback while the live-lookup feature (real Nominatim geocoding + Overpass competitor data for any Indian town) stays available to show off when connectivity is good. Even with it off, every live call times out at 2.5s and falls through to an honest "unavailable" state rather than hanging.
+
 > **Playwright note:** `playwright.config.ts` targets port 5173 by default. If something else on your machine is already bound to that port, run `npm run dev -- --port <free-port>` and point a local Playwright config's `baseURL`/`webServer` at it instead.
 
 ## Exact NSFDC figures implemented

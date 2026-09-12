@@ -73,5 +73,13 @@ export const NSFDC = {
   maxMarginRupees: 500_000,
 } as const
 
-export const OVERPASS_TIMEOUT_MS = 12_000
-export const NOMINATIM_TIMEOUT_MS = 10_000
+/**
+ * Every live network call (Nominatim geocode, Overpass competitor lookup,
+ * Open-Meteo weather) aborts after this long and falls through to the
+ * existing honest "unavailable"/"limited data" UI state. Kept short (2-3s)
+ * so a live screen-share demo never sits on a spinner waiting for a slow or
+ * dead connection — fail fast, show the honest fallback, keep moving.
+ */
+export const LIVE_CALL_TIMEOUT_MS = 2_500
+export const OVERPASS_TIMEOUT_MS = LIVE_CALL_TIMEOUT_MS
+export const NOMINATIM_TIMEOUT_MS = LIVE_CALL_TIMEOUT_MS

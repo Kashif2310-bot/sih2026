@@ -77,9 +77,12 @@ export async function resolveCuratedVillage(
   villageId: string,
   category: BusinessCategory,
   radiusKm: number = REACH_KM.default,
+  demoMode = false,
 ): Promise<ResolvedLocation> {
   const v = VILLAGES.find((x) => x.id === villageId) ?? VILLAGES[0]
   const base = curatedLocationFromVillage(v, radiusKm)
+  // Demo Mode: zero network calls, seeded data only — no Overpass enrichment attempt at all.
+  if (demoMode) return base
   // Enrich curated map with live POIs when possible; keep seeded density as source of truth for score
   const live = await fetchCompetitorsNearby({
     lat: v.lat,

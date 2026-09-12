@@ -56,6 +56,9 @@ export const translationResources = {
         livePlace: 'Place name',
         useGps: 'Use my location',
         radius: 'Reach radius',
+        offlineDemoMode: 'Offline Demo Mode',
+        offlineDemoModeHint:
+          'No live network calls — uses only the 5 seeded villages with their existing curated data. Turn on before presenting if venue wifi is unreliable.',
       },
       pulse: {
         title: 'Live Opportunity Pulse',
@@ -196,6 +199,9 @@ export const translationResources = {
         livePlace: 'ಸ್ಥಳದ ಹೆಸರು',
         useGps: 'ನನ್ನ ಸ್ಥಳ ಬಳಸಿ',
         radius: 'ವ್ಯಾಪ್ತಿ ತ್ರಿಜ್ಯ',
+        offlineDemoMode: 'ಆಫ್‌ಲೈನ್ ಡೆಮೋ ಮೋಡ್',
+        offlineDemoModeHint:
+          'ಯಾವುದೇ ಲೈವ್ ನೆಟ್‌ವರ್ಕ್ ಕರೆಗಳಿಲ್ಲ — ಕೇವಲ 5 ಕ್ಯುರೇಟೆಡ್ ಗ್ರಾಮಗಳ ಅಸ್ತಿತ್ವದಲ್ಲಿರುವ ಡೇಟಾ ಬಳಸುತ್ತದೆ. ವೇದಿಕೆಯ ವೈಫೈ ಅವಿಶ್ವಾಸಾರ್ಹವಾಗಿದ್ದರೆ ಪ್ರಸ್ತುತಪಡಿಸುವ ಮೊದಲು ಆನ್ ಮಾಡಿ.',
       },
       pulse: {
         title: 'ಲೈವ್ ಅವಕಾಶ ಪಲ್ಸ್',

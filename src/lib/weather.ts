@@ -1,4 +1,17 @@
 import type { WeatherSignal } from './lokScore'
+import { LIVE_CALL_TIMEOUT_MS } from './config'
+
+/** Fetch with an abort timeout so a stalled connection fails fast instead of
+ * hanging the UI indefinitely — critical for a live screen-share demo. */
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), LIVE_CALL_TIMEOUT_MS)
+  try {
+    return await fetch(url, { signal: ctrl.signal })
+  } finally {
+    clearTimeout(t)
+  }
+}
 
 const WMO: Record<number, { en: string; kn: string }> = {
   0: { en: 'Clear sky', kn: 'ಸ್ವಚ್ಛ ಆಕಾಶ' },
@@ -19,7 +32,7 @@ export async function fetchWeather(lat: number, lng: number): Promise<WeatherSig
     `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max` +
     `&timezone=Asia%2FKolkata&forecast_days=7`
 
-  const res = await fetch(url)
+  const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error('Weather fetch failed')
   const data = await res.json()
   const code = Number(data.daily.weathercode?.[0] ?? 2)
@@ -41,7 +54,7 @@ export async function fetchWeekTemps(lat: number, lng: number) {
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
     `&timezone=Asia%2FKolkata&forecast_days=7`
-  const res = await fetch(url)
+  const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error('Weather week failed')
   const data = await res.json()
   return (data.daily.time as string[]).map((date: string, i: number) => ({

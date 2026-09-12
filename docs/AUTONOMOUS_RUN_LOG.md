@@ -246,3 +246,37 @@ Added `vercel.json` (build command, output dir, a catch-all rewrite to `index.ht
 
 Both commands build (`npm run build`) and publish `dist/` as configured in the respective config file.
 
+---
+
+# DEMO RELIABILITY PASS — 2026-09-12 05:55 (continuing on `main`)
+
+This is a live screen-share demo, not a hosted deployment — the failure mode to eliminate is anything hanging or looking broken on screen in front of judges. Three sub-tasks, all completed and verified.
+
+## 1. Request timeouts on every live network call
+
+**Before:** Nominatim and Overpass already had `AbortController`-based timeouts (10s and 12s respectively — too long for a live demo). **Open-Meteo weather had none at all** — `fetchWeather`/`fetchWeekTemps` called plain `fetch()` with no signal, so a stalled connection (bad venue wifi neither succeeding nor failing) could hang the `Promise.all` in `AppContext.setProfileAndScan` indefinitely, leaving `loading` true forever with no recovery path.
+
+**Fixed:**
+- New shared `LIVE_CALL_TIMEOUT_MS = 2_500` in `config.ts`, replacing the old 10s/12s values — every live call now aborts at the same 2.5s bound.
+- Added a `fetchWithTimeout` helper in `weather.ts` (same `AbortController` pattern already used in `geo.ts`) and wired both `fetchWeather` and `fetchWeekTemps` through it. A timeout now throws the same way a real network error already did, so it falls into the existing `catch { w = unavailableWeather(); wk = [] }` — no new failure path, just closing the gap in an existing one.
+
+**Found and fixed a real bug while verifying this with a simulated hung connection:** `fetchCompetitorsNearby` (Overpass) tried its two mirror endpoints **sequentially** — a dead first endpoint meant a full `OVERPASS_TIMEOUT_MS` wait, then the *same* wait again on the second endpoint before giving up, silently doubling the "2-3 second" budget to ~5s for that one call alone. Combined with weather's own ~2.5s, a genuinely bad connection could produce a ~9s total wait before the honest fallback appeared (confirmed empirically: 9275ms in a Playwright test with both Nominatim... actually Overpass and weather hung). Fixed by racing both endpoints in parallel with `Promise.any` instead of sequential try-then-fallback (`geo.ts`) — worst case for Overpass is now bounded to one `LIVE_CALL_TIMEOUT_MS`, not one per endpoint. Re-measured after the fix: a fully-hung weather call now resolves to the honest fallback in ~5.4-6.4s (down from ~9.3s), and a fully-hung Nominatim geocode fails with the existing clear error message in ~3.2s. Neither is instant, but both are now a small, bounded, honest wait — never an indefinite hang.
+
+**New permanent regression tests** (`e2e/network-timeout.spec.ts`): one that hangs the Open-Meteo route entirely and confirms the scan still completes and shows "Live weather unavailable" well within a generous ceiling; one that hangs the Nominatim route and confirms the existing "could not geocode" alert appears instead of the UI ever navigating to `/pulse`.
+
+## 2. Offline Demo Mode toggle
+
+New checkbox switch in the top-right corner of `/scan` (labelled "Offline Demo Mode" / "ಆಫ್‌ಲೈನ್ ಡೆಮೋ ಮೋಡ್", defaulting OFF, persisted in `localStorage` — wrapped in try/catch for private-browsing contexts — so a presenter doesn't have to remember to re-flip it after an accidental reload mid-event). When ON:
+
+- The "Enter any place in India" (live search) radio is disabled and greyed out, and turning the toggle on force-switches `locationMode` back to `curated` even if live was already selected — so the UI physically cannot attempt a live lookup while it's active.
+- `EntrepreneurProfile` gained an optional `demoMode?: boolean` field (`lokScore.ts`), threaded through to `AppContext.setProfileAndScan`: the Open-Meteo weather calls are skipped entirely (straight to `unavailableWeather()`, not even attempted) and `resolveCuratedVillage` gained a `demoMode` parameter that skips its Overpass competitor-enrichment call entirely, returning the plain seeded village data. As a defensive safety net, `AppContext` also refuses to take the live-location branch at all when `demoMode` is true, even if `locationMode` were somehow still `'live'`.
+- Net effect: with Demo Mode on, a scan makes **zero** network requests and completes near-instantly, using only the 5 seeded villages' existing curated data — exactly the zero-network-risk fallback the task asked for. The live-lookup feature remains fully available and untouched when the toggle is off.
+
+**New permanent tests** (`e2e/demo-mode.spec.ts`): one that turns Demo Mode on, runs a full scan while asserting via a `page.on('request', ...)` listener that literally zero requests to `open-meteo.com`/`nominatim.openstreetmap.org`/`overpass*` occur, confirms the elapsed time is under 2s (proving nothing was even attempted, let alone timed out), and confirms the resulting `/pulse` page correctly shows the honest "Live weather unavailable" state rather than a fabricated one; one that confirms toggling Demo Mode on force-switches an already-selected live radio back to curated and disables it.
+
+## 3. Fresh-clone-like `npm run dev` check
+
+Simulated a genuinely fresh clone rather than an incremental rebuild: `rm -rf node_modules dist node_modules/.vite .vite-temp`, then `npm install` from scratch (reverted the usual harmless `package-lock.json` normalization noise afterward), then `npm run dev`. Confirmed via a throwaway Playwright script (written, run, deleted) with `page.on('console', ...)`/`page.on('pageerror', ...)` listeners attached *before* navigation: zero console errors or page errors on first paint of `/` and after navigating to `/scan`. Also re-ran the full test suite against this genuinely-fresh install: `npm run build` clean, `npm test` 37/37, full Playwright suite 12/12 (8 pre-existing + 2 new Demo Mode + 2 new network-timeout tests).
+
+**Verified the exact demo path still produces the same numbers after all of the above:** `demo-path.spec.ts` (Scan: SC woman, dairy, Dinka, ₹1L margin → ₹10,00,000 project → ₹9,00,000 loan → Term Loan Scheme) passed throughout every check in this pass, on the fresh install, with Demo Mode's new code paths present but untriggered (that test doesn't enable the toggle, exercising the default/existing live-capable path exactly as before).
+
