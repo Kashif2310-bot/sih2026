@@ -148,4 +148,45 @@ export interface RankedScheme {
   eligibility: EligibilityResult
   relevance: number
   rankScore: number
+  /** Live evidence merged in for this scheme this turn, if any — see evidenceMerge.ts. Absent/empty is the normal case. */
+  liveEvidence?: LiveEvidenceItem[]
+}
+
+/**
+ * Trust model for a single piece of retrieved evidence.
+ *   verified_local   — from the curated local dataset (data/schemes.ts).
+ *   live_official     — fetched this turn from an allowlisted official
+ *                        government domain via the live-retrieval Edge
+ *                        Function, and successfully validated.
+ *   live_unverified    — reserved for a live result that could not be fully
+ *                        validated (e.g. domain allowlisted but response
+ *                        shape unexpected). Never produced by the current
+ *                        implementation, which drops anything it can't
+ *                        validate rather than passing it through with this
+ *                        label — kept in the enum so the UI/tests have a
+ *                        defined place to render it if that changes.
+ *   unavailable        — live retrieval was attempted and failed, or was
+ *                        never configured/attempted.
+ */
+export type VerificationStatus = 'verified_local' | 'live_official' | 'live_unverified' | 'unavailable'
+
+export interface LiveEvidenceItem {
+  /** Local scheme this evidence was matched to — live evidence is never shown as a standalone, unvetted "scheme". */
+  schemeId: string
+  sourceName: string
+  sourceUrl: string
+  sourceType: 'official_open_data' | 'official_ministry' | 'official_other'
+  verificationStatus: VerificationStatus
+  /** When THIS app fetched it. */
+  retrievedAt: string
+  /** When the source itself says the underlying data was published/updated, if it says. */
+  publishedAt?: string
+  /** Short, human-readable fact — e.g. "1,204 units sanctioned in Karnataka in FY2023-24". Never eligibility criteria. */
+  summary: string
+}
+
+/** What actually happened when this turn tried (or didn't try) live retrieval — drives the UI's source-status line. */
+export interface RetrievalSourceStatus {
+  status: 'verified_local' | 'live_official' | 'live_unavailable'
+  checkedAt: string
 }

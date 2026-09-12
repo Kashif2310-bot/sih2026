@@ -1,0 +1,8 @@
+# Minimal Supabase CLI project config for the AI Scheme Assistant's optional
+# backend. See README.md "Supabase setup" for how to link this to your own
+# project and deploy supabase/functions/live-scheme-retrieval.
+
+project_id = "sih2026-ai-assistant"
+
+[functions.live-scheme-retrieval]
+verify_jwt = false
