@@ -73,6 +73,18 @@ describe('extractProfileFromMessage — edge cases', () => {
     const extracted = extractProfileFromMessage('I want to start a retail business requiring ₹12 lakh.')
     expect(extracted.businessSector).toBe('retail')
   })
+
+  it('BUG REGRESSION: a "not <state>" correction picks the corrected state, not whichever name is longer', () => {
+    // Karnataka (9 letters) is longer than Kerala (6) — a naive "prefer the
+    // longer match" rule would silently keep the wrong, negated state.
+    const extracted = extractProfileFromMessage('Actually I am in Kerala, not Karnataka.')
+    expect(extracted.state).toBe('Kerala')
+  })
+
+  it('picks the corrected state when the negated one is shorter and mentioned first', () => {
+    const extracted = extractProfileFromMessage('Not Bihar, I meant Karnataka.')
+    expect(extracted.state).toBe('Karnataka')
+  })
 })
 
 describe('mergeProfile / extractAndMerge', () => {

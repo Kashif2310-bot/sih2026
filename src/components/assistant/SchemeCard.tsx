@@ -6,7 +6,21 @@ import type { RankedScheme } from '../../assistant/types'
 export function SchemeCard({ ranked, onViewDetails }: { ranked: RankedScheme; onViewDetails: () => void }) {
   const { t } = useTranslation()
   const { scheme, eligibility } = ranked
-  const topLine = eligibility.reasons[0] ?? eligibility.mismatchReasons[0]
+  // A scheme can accumulate positive reasons (e.g. age fits) even when a
+  // single hard mismatch elsewhere (e.g. an excluded sector) makes it
+  // "Unlikely match" overall — showing that positive line as the headline
+  // would misleadingly imply a better fit than the badge says. So for an
+  // ineligible card, lead with the actual disqualifying reason instead.
+  // A scheme with only a missing-info gap (no reason or mismatch yet, e.g.
+  // "possibly eligible" pending one unknown field) would otherwise show a
+  // blank summary line, which reads as an unexplained status rather than
+  // an honest "here's what's still needed".
+  const missingLine =
+    eligibility.missingInfo.length > 0 ? `${t('assistant.missingForThis')}: ${eligibility.missingInfo[0]}` : undefined
+  const topLine =
+    eligibility.status === 'likely_ineligible'
+      ? (eligibility.mismatchReasons[0] ?? eligibility.reasons[0] ?? missingLine)
+      : (eligibility.reasons[0] ?? eligibility.mismatchReasons[0] ?? missingLine)
 
   return (
     <article aria-label={scheme.name} className="glass rounded-2xl p-4">

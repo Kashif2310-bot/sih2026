@@ -84,9 +84,18 @@ describe('StaticKnowledgeBaseRetriever — malformed dataset resilience', () => 
     for (const s of SCHEMES) {
       expect(s.id).toBeTruthy()
       expect(s.name).toBeTruthy()
+      // SECURITY: every URL surfaced to a user must be HTTPS.
       expect(s.officialInfoUrl).toMatch(/^https:\/\//)
+      expect(s.officialApplicationUrl).toMatch(/^https:\/\//)
       expect(s.sourceUrl).toMatch(/^https:\/\//)
       expect(s.lastVerifiedDate).toBeTruthy()
     }
+  })
+
+  it('SECURITY: no scheme dataset field embeds an API key or other secret-shaped token', () => {
+    const serialized = JSON.stringify(SCHEMES)
+    expect(serialized).not.toMatch(/sk-[a-zA-Z0-9]{10,}/)
+    expect(serialized).not.toMatch(/api[_-]?key/i)
+    expect(serialized).not.toMatch(/bearer\s+[a-zA-Z0-9._-]{10,}/i)
   })
 })

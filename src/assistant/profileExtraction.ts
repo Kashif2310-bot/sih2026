@@ -16,16 +16,29 @@ export interface ExtractionResult {
   updatedFields: Array<keyof UserProfile>
 }
 
+/**
+ * When a message names more than one state — most commonly a correction
+ * like "Actually I'm in Kerala, not Karnataka" — picking by longest name
+ * (the old rule) silently keeps whichever name has more letters, which is
+ * wrong whenever the correction happens to use a shorter state name than
+ * the one being corrected. Instead: drop any mention immediately preceded
+ * by a negation ("not X"), then prefer whichever remaining mention is
+ * stated last, matching mergeProfile's existing "later statements win"
+ * rule for every other field.
+ */
 function findState(text: string): string | undefined {
   const lower = text.toLowerCase()
-  let best: { name: string; index: number } | undefined
+  const candidates: Array<{ name: string; index: number }> = []
   for (const state of INDIAN_STATES) {
     const idx = lower.indexOf(state.toLowerCase())
-    if (idx !== -1 && (!best || state.length > best.name.length)) {
-      best = { name: state, index: idx }
-    }
+    if (idx === -1) continue
+    const preceding = lower.slice(Math.max(0, idx - 12), idx)
+    if (/\bnot\s+(in\s+)?$/.test(preceding)) continue
+    candidates.push({ name: state, index: idx })
   }
-  return best?.name
+  if (candidates.length === 0) return undefined
+  candidates.sort((a, b) => b.index - a.index || b.name.length - a.name.length)
+  return candidates[0].name
 }
 
 function findAge(text: string): number | undefined {

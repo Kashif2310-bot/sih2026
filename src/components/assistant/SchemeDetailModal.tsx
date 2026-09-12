@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, FileText, Info, ListChecks, X } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileText, Info, ListChecks, X } from 'lucide-react'
 import { StatusBadge } from './StatusBadge'
 import type { RankedScheme } from '../../assistant/types'
 
@@ -76,17 +76,20 @@ export function SchemeDetailModal({ ranked, onClose }: { ranked: RankedScheme | 
           <p className="text-sm text-ink/75">{scheme.description}</p>
         </Section>
 
-        {(eligibility.reasons.length > 0 || eligibility.mismatchReasons.length > 0 || eligibility.missingInfo.length > 0) && (
+        {eligibility.reasons.length > 0 && (
           <Section title={t('assistant.whyMatch')} icon={ListChecks}>
-            {eligibility.reasons.length > 0 && (
-              <ul className="space-y-1 text-sm text-forest">
-                {eligibility.reasons.map((r) => (
-                  <li key={r}>✓ {r}</li>
-                ))}
-              </ul>
-            )}
+            <ul className="space-y-1 text-sm text-forest">
+              {eligibility.reasons.map((r) => (
+                <li key={r}>✓ {r}</li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {(eligibility.mismatchReasons.length > 0 || eligibility.missingInfo.length > 0) && (
+          <Section title={t('assistant.concerns')} icon={AlertTriangle}>
             {eligibility.mismatchReasons.length > 0 && (
-              <ul className="mt-2 space-y-1 text-sm text-clay">
+              <ul className="space-y-1 text-sm text-clay">
                 {eligibility.mismatchReasons.map((r) => (
                   <li key={r}>! {r}</li>
                 ))}
