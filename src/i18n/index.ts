@@ -123,6 +123,16 @@ export const translationResources = {
         simulatedRelease: 'Simulated release — no blockchain transaction',
         escrowSketch:
           'UI sketch only. AdaptiveSanction.sol is not wired; nothing moves on-chain or to a bank.',
+        applicationId: 'Application id (consumed from application layer / provisional until Adita ships)',
+        allocatedSet: 'Allocated reviewers (deterministic prototype pool)',
+        prototypePool:
+          'Demo authorized pool only — not a real government officer registry.',
+        cryptoNote:
+          'Each signature is real secp256k1 ECDSA via ethers.js — not a fake checkbox. Release stays simulated.',
+        mentorRule:
+          'Lower LokScore — a valid signature from the mentor role is required, plus more verifiers.',
+        auditTrail: 'Tamper-evident audit chain (in-memory prototype)',
+        authDigest: 'Disbursement authorization digest',
       },
       exportPage: {
         title: 'NSFDC Feasibility & Finance Report',
@@ -350,6 +360,16 @@ export const translationResources = {
         simulatedRelease: 'ಸಿಮ್ಯುಲೇಟೆಡ್ ಬಿಡುಗಡೆ — ಬ್ಲಾಕ್‌ಚೈನ್ ವ್ಯವಹಾರವಿಲ್ಲ',
         escrowSketch:
           'UI ಸ್ಕೆಚ್ ಮಾತ್ರ. AdaptiveSanction.sol ಜೋಡಿಸಿಲ್ಲ; ಚೈನ್ ಅಥವಾ ಬ್ಯಾಂಕ್‌ಗೆ ಏನೂ ಚಲಿಸುವುದಿಲ್ಲ.',
+        applicationId: 'ಅರ್ಜಿ ಐಡಿ (ಅರ್ಜಿ ಪದರದಿಂದ / Adita ಬರುವವರೆಗೆ ತಾತ್ಕಾಲಿಕ)',
+        allocatedSet: 'ನಿಯೋಜಿತ ಪರಿಶೀಲಕರು (ನಿರ್ಧಾರಿತ ಮೂಲಮಾದರಿ ಪೂಲ್)',
+        prototypePool:
+          'ಡೆಮೋ ಅಧಿಕೃತ ಪೂಲ್ ಮಾತ್ರ — ನಿಜವಾದ ಸರ್ಕಾರಿ ಅಧಿಕಾರಿ ಪಟ್ಟಿಯಲ್ಲ.',
+        cryptoNote:
+          'ಪ್ರತಿ ಸಹಿ ನಿಜವಾದ secp256k1 ECDSA (ethers.js). ನಕಲಿ ಟಿಕ್ ಅಲ್ಲ. ಬಿಡುಗಡೆ ಸಿಮ್ಯುಲೇಟೆಡ್.',
+        mentorRule:
+          'ಕಡಿಮೆ ಲೋಕ್‌ಸ್ಕೋರ್ — ಮಾರ್ಗದರ್ಶಕ ಪಾತ್ರದ ಮಾನ್ಯ ಸಹಿ ಕಡ್ಡಾಯ + ಹೆಚ್ಚು ಪರಿಶೀಲಕರು.',
+        auditTrail: 'ಟ್ಯಾಂಪರ್-ಎವಿಡೆಂಟ್ ಆಡಿಟ್ ಸರಪಳಿ (ಇನ್-ಮೆಮೊರಿ ಮೂಲಮಾದರಿ)',
+        authDigest: 'ವಿತರಣಾ ಅಧಿಕಾರ ಡೈಜೆಸ್ಟ್',
       },
       exportPage: {
         title: 'NSFDC ಸಾಧ್ಯತಾ ಮತ್ತು ಹಣಕಾಸು ವರದಿ',

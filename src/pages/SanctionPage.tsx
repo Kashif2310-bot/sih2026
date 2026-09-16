@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle2, FileDown, Lock, Shield, Sparkles } from 'lucide-react'
 import { useApp } from '../state/useApp'
 import { formatINR } from '../lib/finance'
-import { quorumMet } from '../lib/multisig'
 
 export function SanctionPage() {
   const { t, i18n } = useTranslation()
@@ -19,14 +18,23 @@ export function SanctionPage() {
     escrowReleased,
     signAs,
     releaseEscrow,
+    allocation,
+    applicationSnapshot,
+    auditLog,
+    disbursementAuth,
+    approvalReady,
+    authorizedPool,
   } = useApp()
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  if (!profile || !plan || !score || !attestation) return <Navigate to="/scan" replace />
+  if (!profile || !plan || !score || !attestation || !allocation || !applicationSnapshot) {
+    return <Navigate to="/scan" replace />
+  }
 
-  const pool = verifiers.slice(0, score.quorumPool)
-  const met = quorumMet(score, signatures)
+  const pool = allocation.allocatedReviewerIds
+    .map((id) => verifiers.find((v) => v.id === id))
+    .filter((v): v is NonNullable<typeof v> => !!v)
 
   const onSign = async (id: string) => {
     setBusy(id)
@@ -79,12 +87,14 @@ export function SanctionPage() {
                 {signatures.length}/{score.quorumRequired} of {score.quorumPool}
               </dd>
             </div>
+            <div className="col-span-2">
+              <dt className="text-ink/45">{t('sanction.applicationId')}</dt>
+              <dd className="break-all font-mono text-xs">{applicationSnapshot.applicationId}</dd>
+            </div>
           </dl>
           {score.mentorRequired && (
             <p className="mt-4 rounded-xl bg-[#fff7e8] px-3 py-2 text-sm text-clay">
-              {kn
-                ? 'ಕಡಿಮೆ ಲೋಕ್‌ಸ್ಕೋರ್ — ಮಾರ್ಗದರ್ಶಕ ನಿಯೋಜನೆ ಕಡ್ಡಾಯ + ಹೆಚ್ಚು ಪರಿಶೀಲಕರು.'
-                : 'Lower LokScore — mentor assignment mandatory + more verifiers.'}
+              {t('sanction.mentorRule')}
             </p>
           )}
         </div>
@@ -101,14 +111,11 @@ export function SanctionPage() {
               60–79 → 3 of 5 verifiers
             </li>
             <li className={score.total < 60 ? 'font-bold text-forest' : ''}>
-              &lt; 60 → 4 of 5 + mentor
+              &lt; 60 → 4 of 5 + mentor role
             </li>
           </ul>
-          <p className="mt-4 text-xs text-ink/50">
-            {kn
-              ? 'ಪ್ರತಿ ಸಹಿ ನಿಜವಾದ secp256k1 ECDSA (ethers.js). ನಕಲಿ ಟಿಕ್ ಅಲ್ಲ.'
-              : 'Each signature is real secp256k1 ECDSA via ethers.js — not a fake checkbox.'}
-          </p>
+          <p className="mt-4 text-xs text-ink/50">{t('sanction.cryptoNote')}</p>
+          <p className="mt-2 text-xs text-ink/50">{t('sanction.prototypePool')}</p>
         </div>
       </div>
 
@@ -116,35 +123,42 @@ export function SanctionPage() {
         {t('sanction.fixtureIdentities')}
       </p>
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {pool.map((v) => {
-          const signed = signatures.find((s) => s.verifierId === v.id)
-          return (
-            <div key={v.id} className="glass rounded-2xl p-4">
-              <p className="font-semibold text-ink">{kn ? v.nameKn : v.name}</p>
-              <p className="text-xs text-ink/50">{kn ? v.roleKn : v.role}</p>
-              <p className="mt-2 truncate font-mono text-[10px] text-ink/40">{v.wallet.address}</p>
-              {signed ? (
-                <div className="mt-3 space-y-2">
-                  <p className="inline-flex items-center gap-1 text-sm font-semibold text-leaf">
-                    <CheckCircle2 className="h-4 w-4" /> {t('sanction.signed')}
-                  </p>
-                  <p className="break-all font-mono text-[10px] text-ink/45">{signed.signature.slice(0, 42)}…</p>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={!!busy}
-                  onClick={() => void onSign(v.id)}
-                  aria-label={`${t('sanction.sign')} — ${kn ? v.nameKn : v.name}`}
-                  className="mt-3 rounded-full bg-forest px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                >
-                  {busy === v.id ? '…' : t('sanction.sign')}
-                </button>
-              )}
-            </div>
-          )
-        })}
+      <div>
+        <h2 className="mb-3 font-semibold text-forest">{t('sanction.allocatedSet')}</h2>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {pool.map((v) => {
+            const signed = signatures.find((s) => s.verifierId === v.id)
+            const meta = authorizedPool.find((r) => r.id === v.id)
+            return (
+              <div key={v.id} className="glass rounded-2xl p-4">
+                <p className="font-semibold text-ink">{kn ? v.nameKn : v.name}</p>
+                <p className="text-xs text-ink/50">{kn ? v.roleKn : v.role}</p>
+                <p className="text-[10px] uppercase tracking-wide text-ink/40">{meta?.role}</p>
+                <p className="mt-2 truncate font-mono text-[10px] text-ink/40">{v.wallet.address}</p>
+                {signed ? (
+                  <div className="mt-3 space-y-2">
+                    <p className="inline-flex items-center gap-1 text-sm font-semibold text-leaf">
+                      <CheckCircle2 className="h-4 w-4" /> {t('sanction.signed')}
+                    </p>
+                    <p className="break-all font-mono text-[10px] text-ink/45">
+                      {signed.signature.slice(0, 42)}…
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => void onSign(v.id)}
+                    aria-label={`${t('sanction.sign')} — ${kn ? v.nameKn : v.name}`}
+                    className="mt-3 rounded-full bg-forest px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    {busy === v.id ? '…' : t('sanction.sign')}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {err && <p className="text-sm text-danger">{err}</p>}
@@ -157,7 +171,7 @@ export function SanctionPage() {
             </h2>
             <p className="text-sm text-ink/60">{t('sanction.escrowSketch')}</p>
           </div>
-          {met ? (
+          {approvalReady ? (
             <button
               type="button"
               onClick={releaseEscrow}
@@ -180,9 +194,27 @@ export function SanctionPage() {
             <p className="mt-1">
               {formatINR(plan.loanAmount)} → {profile.name} · attestation {attestation.reportHash.slice(0, 18)}…
             </p>
+            {disbursementAuth && (
+              <p className="mt-2 break-all font-mono text-[10px] text-ink/60">
+                {t('sanction.authDigest')}: {disbursementAuth.authorizationDigest}
+              </p>
+            )}
             <p className="mt-2 text-xs">{t('sanction.escrowSketch')}</p>
           </div>
         )}
+      </div>
+
+      <div className="glass rounded-2xl p-5">
+        <h2 className="font-semibold text-forest">{t('sanction.auditTrail')}</h2>
+        <ol className="mt-3 max-h-56 space-y-2 overflow-auto text-xs text-ink/70">
+          {auditLog.map((e) => (
+            <li key={e.eventId} className="rounded-lg bg-mist/60 px-3 py-2 font-mono">
+              <span className="font-semibold text-forest">{e.eventType}</span>
+              {e.actorRef ? ` · ${e.actorRef}` : ''}
+              <div className="truncate text-ink/45">{e.eventHash}</div>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">

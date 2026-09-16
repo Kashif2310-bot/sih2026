@@ -8,15 +8,48 @@ import { resolveCuratedVillage, resolveLiveLocation, type ResolvedLocation } fro
 import { buildWorkingCapital, type WorkingCapitalPlan } from '../lib/workingCapital'
 import { AppCtx, type AppState } from './app-state'
 import { REACH_KM } from '../lib/config'
+import type { ApprovalSignature, AuditEvent } from '../lib/approval/contracts'
 
-// ethers (via multisig.ts) is real ECDSA crypto and not cheap to parse/execute,
-// so it's dynamically imported on first scan rather than bundled into the
-// eagerly-loaded app shell (landing page never touches signatures at all).
-// Cached so repeated scans don't re-trigger the network request.
-let multisigModulePromise: Promise<typeof import('../lib/multisig')> | null = null
-function loadMultisig() {
-  if (!multisigModulePromise) multisigModulePromise = import('../lib/multisig')
-  return multisigModulePromise
+// ethers (via multisig.ts / approval hashing) is real ECDSA crypto and not
+// cheap to parse/execute, so it's dynamically imported on first scan rather
+// than bundled into the eagerly-loaded app shell.
+let cryptoModulePromise: Promise<{
+  multisig: typeof import('../lib/multisig')
+  contracts: typeof import('../lib/approval/contracts')
+  quorum: typeof import('../lib/approval/quorum')
+  allocate: typeof import('../lib/approval/allocate')
+  audit: typeof import('../lib/approval/audit')
+  disbursement: typeof import('../lib/approval/disbursement')
+}> | null = null
+
+function loadCrypto() {
+  if (!cryptoModulePromise) {
+    cryptoModulePromise = Promise.all([
+      import('../lib/multisig'),
+      import('../lib/approval/contracts'),
+      import('../lib/approval/quorum'),
+      import('../lib/approval/allocate'),
+      import('../lib/approval/audit'),
+      import('../lib/approval/disbursement'),
+    ]).then(([multisig, contracts, quorum, allocate, audit, disbursement]) => ({
+      multisig,
+      contracts,
+      quorum,
+      allocate,
+      audit,
+      disbursement,
+    }))
+  }
+  return cryptoModulePromise
+}
+
+function toApprovalSigs(records: AppState['signatures']): ApprovalSignature[] {
+  return records.map((s) => ({
+    reviewerId: s.verifierId,
+    address: s.address,
+    signature: s.signature,
+    signedAt: s.signedAt,
+  }))
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -35,7 +68,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [signatures, setSignatures] = useState<AppState['signatures']>([])
   const [escrowReleased, setEscrowReleased] = useState(false)
   const [verifiers, setVerifiers] = useState<Verifier[]>([])
-  const multisigRef = useRef<Awaited<ReturnType<typeof loadMultisig>> | null>(null)
+  const [applicationSnapshot, setApplicationSnapshot] = useState<AppState['applicationSnapshot']>(null)
+  const [approvalPolicy, setApprovalPolicy] = useState<AppState['approvalPolicy']>(null)
+  const [allocation, setAllocation] = useState<AppState['allocation']>(null)
+  const [authorizedPool, setAuthorizedPool] = useState<AppState['authorizedPool']>([])
+  const [auditLog, setAuditLog] = useState<AuditEvent[]>([])
+  const [disbursementAuth, setDisbursementAuth] = useState<AppState['disbursementAuth']>(null)
+  const [approvalReady, setApprovalReady] = useState(false)
+  const cryptoRef = useRef<Awaited<ReturnType<typeof loadCrypto>> | null>(null)
 
   const setProfileAndScan = useCallback(async (p: EntrepreneurProfile) => {
     setLoading(true)
@@ -43,14 +83,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setErrorKn(null)
     setSignatures([])
     setEscrowReleased(false)
+    setDisbursementAuth(null)
+    setApprovalReady(false)
+    setAuditLog([])
     const radiusKm = p.radiusKm || REACH_KM.default
 
     try {
       let resolved: ResolvedLocation
-      // Demo Mode is a presenter safety switch: even if locationMode somehow
-      // ended up 'live' (shouldn't happen — the UI locks it to curated),
-      // never attempt a live call once it's on. Zero network calls, seeded
-      // villages only.
       if (p.locationMode === 'live' && !p.demoMode) {
         const live = await resolveLiveLocation({
           query: p.liveQuery,
@@ -79,7 +118,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let w: WeatherSignal
       let wk: AppState['week'] = []
       if (p.demoMode) {
-        // Demo Mode: don't even attempt the call.
         w = unavailableWeather()
         wk = []
       } else {
@@ -89,9 +127,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             fetchWeekTemps(resolved.lat, resolved.lng),
           ])
         } catch {
-          // Covers both a real failure and the 2.5s abort timeout inside
-          // fetchWeather/fetchWeekTemps — either way, fail fast to the
-          // honest "unavailable" state rather than hanging.
           w = unavailableWeather()
           wk = []
         }
@@ -106,18 +141,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
         plan: scheme,
       })
 
-      const multisig = await loadMultisig()
-      multisigRef.current = multisig
-      const pool = multisig.createVerifierPool()
-      const att = multisig.buildAttestation({
-        entrepreneurName: p.name,
+      const crypto = await loadCrypto()
+      cryptoRef.current = crypto
+      const policy = crypto.quorum.freezeQuorumPolicy(lok)
+      const frozenAt = Date.now()
+      const applicationId = crypto.contracts.provisionalApplicationId({
+        applicantRef: p.name,
         villageId: resolved.id,
-        lokScore: lok.total,
+        schemeId: scheme.schemeId,
+        frozenAt,
+      })
+      const snapshot = {
+        applicationId,
+        applicantRef: p.name,
+        villageId: resolved.id,
         schemeId: scheme.schemeId,
         projectCost: scheme.projectCost,
         loanAmount: scheme.loanAmount,
-        quorumRequired: lok.quorumRequired,
-        quorumPool: lok.quorumPool,
+        lokScore: lok,
+        frozenAt,
+      }
+      const snapshotDigest = crypto.contracts.hashApplicationSnapshot(snapshot)
+      const verifiersPool = crypto.multisig.createVerifierPool()
+      const pool = crypto.allocate.demoAuthorizedPool(verifiersPool)
+      const nextAllocation = crypto.allocate.allocateReviewers({
+        snapshot,
+        snapshotDigest,
+        policy,
+        pool,
+        allocatedAt: frozenAt,
+      })
+      const att = crypto.multisig.buildAttestationFromSnapshot(snapshot)
+      let log = crypto.audit.appendAuditEvent([], {
+        applicationId,
+        eventType: 'application_opened',
+        timestamp: frozenAt,
+        dataRef: snapshotDigest,
+      })
+      log = crypto.audit.appendAuditEvent(log, {
+        applicationId,
+        eventType: 'reviewer_allocation_created',
+        timestamp: frozenAt,
+        dataRef: nextAllocation.allocationDigest,
       })
 
       setProfile(p)
@@ -128,8 +193,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlan(scheme)
       setWorkingCapital(wc)
       setScore(lok)
-      setVerifiers(pool)
+      setVerifiers(verifiersPool)
       setAttestation(att)
+      setApplicationSnapshot(snapshot)
+      setApprovalPolicy(policy)
+      setAllocation(nextAllocation)
+      setAuthorizedPool(pool)
+      setAuditLog(log)
       return true
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed')
@@ -142,24 +212,147 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signAs = useCallback(
     async (verifierId: string) => {
-      if (!attestation || !score || !multisigRef.current) return
-      const { signAttestation, verifySignature } = multisigRef.current
+      if (!attestation || !applicationSnapshot || !approvalPolicy || !allocation || !cryptoRef.current) return
+      const crypto = cryptoRef.current
       const verifier = verifiers.find((v) => v.id === verifierId)
       if (!verifier) return
       if (signatures.some((s) => s.verifierId === verifierId)) return
-      const active = verifiers.slice(0, score.quorumPool)
-      if (!active.some((v) => v.id === verifierId)) return
-      const record = await signAttestation(verifier, attestation)
-      if (!verifySignature(attestation, record)) throw new Error('Signature invalid')
-      setSignatures((prev) => [...prev, record])
+
+      const requested = crypto.audit.appendAuditEvent(auditLog, {
+        applicationId: applicationSnapshot.applicationId,
+        eventType: 'signature_requested',
+        actorRef: verifierId,
+        dataRef: allocation.allocationDigest,
+      })
+
+      if (!allocation.allocatedReviewerIds.includes(verifierId)) {
+        setAuditLog(
+          crypto.audit.appendAuditEvent(requested, {
+            applicationId: applicationSnapshot.applicationId,
+            eventType: 'signature_rejected',
+            actorRef: verifierId,
+            dataRef: 'outside_allocated_set',
+          }),
+        )
+        throw new Error('Reviewer is not in the allocated set')
+      }
+
+      const record = await crypto.multisig.signAttestation(verifier, attestation)
+      const addressOk = crypto.multisig.verifySignatureForReviewer(
+        attestation,
+        record,
+        verifier.wallet.address,
+      )
+      if (!addressOk) {
+        setAuditLog(
+          crypto.audit.appendAuditEvent(requested, {
+            applicationId: applicationSnapshot.applicationId,
+            eventType: 'signature_rejected',
+            actorRef: verifierId,
+            dataRef: 'invalid_signature',
+          }),
+        )
+        throw new Error('Signature invalid')
+      }
+
+      const nextSigs = [...signatures, record]
+      const evaluation = crypto.quorum.evaluateApproval({
+        snapshot: applicationSnapshot,
+        snapshotDigest: attestation.reportHash,
+        policy: approvalPolicy,
+        allocation,
+        pool: authorizedPool,
+        attestation,
+        signatures: toApprovalSigs(nextSigs),
+      })
+      let log = crypto.audit.appendAuditEvent(requested, {
+        applicationId: applicationSnapshot.applicationId,
+        eventType: 'signature_collected',
+        actorRef: verifierId,
+        dataRef: record.signature.slice(0, 18),
+      })
+      log = crypto.audit.appendAuditEvent(log, {
+        applicationId: applicationSnapshot.applicationId,
+        eventType: 'quorum_evaluated',
+        dataRef: `${evaluation.uniqueValidCount}/${approvalPolicy.quorumRequired}`,
+      })
+      log = crypto.audit.appendAuditEvent(log, {
+        applicationId: applicationSnapshot.applicationId,
+        eventType: 'mentor_condition_evaluated',
+        dataRef: evaluation.mentorSatisfied ? 'mentor_ok' : 'mentor_pending',
+      })
+      if (evaluation.ok) {
+        log = crypto.audit.appendAuditEvent(log, {
+          applicationId: applicationSnapshot.applicationId,
+          eventType: 'quorum_reached',
+          dataRef: attestation.reportHash,
+        })
+      }
+      setSignatures(nextSigs)
+      setAuditLog(log)
+      setApprovalReady(evaluation.ok)
     },
-    [attestation, score, signatures, verifiers],
+    [
+      attestation,
+      applicationSnapshot,
+      approvalPolicy,
+      allocation,
+      authorizedPool,
+      auditLog,
+      signatures,
+      verifiers,
+    ],
   )
 
   const releaseEscrow = useCallback(() => {
-    if (!score || !multisigRef.current || !multisigRef.current.quorumMet(score, signatures)) return
+    if (
+      !applicationSnapshot ||
+      !approvalPolicy ||
+      !allocation ||
+      !attestation ||
+      !cryptoRef.current
+    ) {
+      return
+    }
+    const crypto = cryptoRef.current
+    const result = crypto.disbursement.authorizeDisbursement({
+      snapshot: applicationSnapshot,
+      snapshotDigest: attestation.reportHash,
+      policy: approvalPolicy,
+      allocation,
+      pool: authorizedPool,
+      attestation,
+      signatures: toApprovalSigs(signatures),
+      auditLog,
+    })
+    if (!result.ok) {
+      setAuditLog(
+        crypto.audit.appendAuditEvent(auditLog, {
+          applicationId: applicationSnapshot.applicationId,
+          eventType: 'disbursement_blocked',
+          dataRef: result.reasons[0],
+        }),
+      )
+      return
+    }
+    setDisbursementAuth(result.authorization)
     setEscrowReleased(true)
-  }, [score, signatures])
+    setAuditLog(
+      crypto.audit.appendAuditEvent(auditLog, {
+        applicationId: applicationSnapshot.applicationId,
+        eventType: 'disbursement_authorized',
+        dataRef: result.authorization.authorizationDigest,
+      }),
+    )
+  }, [
+    applicationSnapshot,
+    approvalPolicy,
+    allocation,
+    attestation,
+    authorizedPool,
+    signatures,
+    auditLog,
+  ])
 
   const reset = useCallback(() => {
     setProfile(null)
@@ -174,6 +367,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSignatures([])
     setVerifiers([])
     setEscrowReleased(false)
+    setApplicationSnapshot(null)
+    setApprovalPolicy(null)
+    setAllocation(null)
+    setAuthorizedPool([])
+    setAuditLog([])
+    setDisbursementAuth(null)
+    setApprovalReady(false)
     setError(null)
     setErrorKn(null)
   }, [])
@@ -194,6 +394,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     signatures,
     verifiers,
     escrowReleased,
+    applicationSnapshot,
+    approvalPolicy,
+    allocation,
+    authorizedPool,
+    auditLog,
+    disbursementAuth,
+    approvalReady,
     setProfileAndScan,
     signAs,
     releaseEscrow,

@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+import type { AuditEvent, DisbursementAuthorization, ReviewerAllocation, ApplicationSnapshot, AuthorizedReviewer, QuorumPolicy } from '../lib/approval/contracts'
 import type { SchemePlan } from '../lib/finance'
 import type {
   EntrepreneurProfile,
@@ -26,6 +27,13 @@ export interface AppState {
   signatures: SignatureRecord[]
   verifiers: Verifier[]
   escrowReleased: boolean
+  applicationSnapshot: ApplicationSnapshot | null
+  approvalPolicy: QuorumPolicy | null
+  allocation: ReviewerAllocation | null
+  authorizedPool: AuthorizedReviewer[]
+  auditLog: AuditEvent[]
+  disbursementAuth: DisbursementAuthorization | null
+  approvalReady: boolean
   setProfileAndScan: (p: EntrepreneurProfile) => Promise<boolean>
   signAs: (verifierId: string) => Promise<void>
   releaseEscrow: () => void
