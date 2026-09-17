@@ -40,6 +40,7 @@ const SOURCE_TYPES: ReadonlySet<LiveEvidenceItem['sourceType']> = new Set([
 const VERIFICATION_STATUSES: ReadonlySet<VerificationStatus> = new Set([
   'verified_local',
   'live_official',
+  'live_contextual',
   'live_unverified',
   'unavailable',
 ])

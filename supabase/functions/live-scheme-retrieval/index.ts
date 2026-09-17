@@ -38,6 +38,24 @@
 //   against a live key/resource because none was available while writing
 //   this. Whoever configures a real resource ID should sanity-check the
 //   summaries this produces against that resource's actual columns.
+//
+// SCHEME-BINDING TRUST BOUNDARY (Prompt 8 — read before adding a new field
+// here that a caller might treat as "proof" of a scheme tie):
+//   This function stamps `schemeId` onto every item purely from `body.
+//   schemeIds` (the caller's REQUEST) — it is NOT evidence that the
+//   underlying data.gov.in record itself is about that scheme. The
+//   frontend (src/assistant/evidence/schemeBinding.ts, via
+//   dataGovInConnector.ts) treats this `schemeId` field as untrusted for
+//   binding purposes and will NEVER attach evidence to a scheme's
+//   liveEvidence on the strength of it alone — only an `explicitSchemeId`
+//   or `officialApplicationUrl` this function does not currently emit
+//   (because the underlying OGD datasets don't carry either) would qualify.
+//   Every item this function returns today is therefore correctly
+//   reclassified client-side as `live_contextual`, not `live_official`. If
+//   a future resource/dataset genuinely identifies a scheme (e.g. a
+//   `scheme_id` or canonical application-URL column), add `explicitSchemeId`
+//   / `officialApplicationUrl` to the emitted item from THAT column — never
+//   from `schemeIds` in the request.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { isTrustedGovUrl } from '../_shared/trustedDomains.ts'
