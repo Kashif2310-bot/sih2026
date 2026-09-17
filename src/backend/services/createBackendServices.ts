@@ -29,6 +29,11 @@ import {
   type LokPulseSupabaseClient,
 } from '../supabase/client'
 import { getSupabasePublicConfig, getSupabaseServerConfig } from '../supabase/config'
+import { createDataGovInAdapter } from './officialSource/dataGovInAdapter'
+import { createOfficialSchemeDiscoveryService } from './officialSource/officialSchemeDiscoveryService'
+import { createRetrievalOrchestrator } from './officialSource/orchestrator'
+import { createSupabaseRetrievalAuditLogger } from './officialSource/supabaseRetrievalAuditLogger'
+import type { OfficialSchemeDiscoveryService } from './officialSource/officialSchemeDiscoveryService'
 
 export type BackendMode = 'auto' | 'memory' | 'supabase'
 
@@ -41,6 +46,29 @@ export interface BackendServices {
   applicationStatus: ApplicationStatusService
   /** True when supabase URL/anon present (may still be using memory for writes). */
   supabaseConfigured: boolean
+  /**
+   * Phase 3 — official government-source discovery (data.gov.in etc.),
+   * additive to `schemes`. Optional so existing callers/mocks of
+   * BackendServices built before Phase 3 keep typechecking unchanged.
+   */
+  discovery?: OfficialSchemeDiscoveryService
+}
+
+/**
+ * One process-wide orchestrator so source health/cache survive across
+ * createBackendServices() calls. The audit sink (when a Supabase client is
+ * available on first construction) is fixed for the process lifetime —
+ * acceptable for a prototype; revisit if callers need it swapped at runtime.
+ */
+let sharedDiscovery: OfficialSchemeDiscoveryService | null = null
+
+function getSharedDiscovery(fixture: SchemeRegistry, client?: LokPulseSupabaseClient | null): OfficialSchemeDiscoveryService {
+  if (!sharedDiscovery) {
+    const onAttempt = client ? createSupabaseRetrievalAuditLogger(client) : undefined
+    const orchestrator = createRetrievalOrchestrator([createDataGovInAdapter()], { onAttempt })
+    sharedDiscovery = createOfficialSchemeDiscoveryService(orchestrator, fixture)
+  }
+  return sharedDiscovery
 }
 
 export interface CreateBackendServicesOptions {
@@ -68,6 +96,7 @@ function memoryBundle(supabaseConfigured: boolean): BackendServices {
     applications: memory.persistence,
     applicationStatus: memory.status,
     supabaseConfigured,
+    discovery: getSharedDiscovery(schemes),
   }
 }
 
@@ -115,6 +144,7 @@ export function createBackendServices(opts: CreateBackendServicesOptions = {}): 
       applications: memory.persistence,
       applicationStatus: memory.status,
       supabaseConfigured: true,
+      discovery: getSharedDiscovery(fixture, client),
     }
   }
 
@@ -126,6 +156,7 @@ export function createBackendServices(opts: CreateBackendServicesOptions = {}): 
     recommendations: createRecommendationService(schemes),
     applications: apps.persistence,
     applicationStatus: apps.status,
+    discovery: getSharedDiscovery(fixture, client),
     supabaseConfigured: true,
   }
 }
