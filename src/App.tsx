@@ -19,6 +19,13 @@ const ExportPage = lazy(() => import('./pages/ExportPage').then((m) => ({ defaul
 const AssistantPage = lazy(() =>
   import('./pages/AssistantPage').then((m) => ({ default: m.AssistantPage })),
 )
+const ApplyPage = lazy(() => import('./pages/ApplyPage').then((m) => ({ default: m.ApplyPage })))
+const ApplyStartPage = lazy(() =>
+  import('./pages/ApplyPage').then((m) => ({ default: m.ApplyStartPage })),
+)
+const ApplyTrackPage = lazy(() =>
+  import('./pages/ApplyPage').then((m) => ({ default: m.ApplyTrackPage })),
+)
 
 const AdminLoginPage = lazy(() =>
   import('./admin/pages/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage })),
@@ -141,6 +148,9 @@ export default function App() {
               <Route path="/apply/submission" element={<ApplySubmissionPage />} />
               <Route path="/apply/tracking" element={<ApplyTrackingPage />} />
               <Route path="/apply/final-report" element={<ApplyFinalReportPage />} />
+              <Route path="/apply/hub" element={<ApplyPage />} />
+              <Route path="/apply/start/:schemeId" element={<ApplyStartPage />} />
+              <Route path="/apply/track/:trackingId" element={<ApplyTrackPage />} />
             </Route>
           </Routes>
         </Suspense>

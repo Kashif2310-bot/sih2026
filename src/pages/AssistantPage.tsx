@@ -157,7 +157,7 @@ function AssistantPageInner() {
         </div>
       </div>
 
-      <SchemeDetailModal ranked={selectedRanked} onClose={() => selectScheme(null)} />
+      <SchemeDetailModal ranked={selectedRanked} profile={profile} onClose={() => selectScheme(null)} />
     </div>
   )
 }
