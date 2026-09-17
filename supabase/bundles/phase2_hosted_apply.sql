@@ -1,0 +1,3 @@
+﻿-- DEPRECATED for Option A.
+-- Use option_a_hosted_apply.sql instead.
+-- This Phase 2 UUID registry bundle conflicts with Kashif public.schemes cache.
