@@ -166,6 +166,7 @@ describe('createBackendServices Option A surfaces', () => {
     expect(backend.jordanApprovals).toBeDefined()
     expect(backend.liveRetrieval).toBeDefined()
     expect(backend.admin).toBeDefined()
+    expect(backend.discovery).toBeDefined()
     expect(backend.mode).toBe('memory')
   })
 })

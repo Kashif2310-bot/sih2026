@@ -1,5 +1,5 @@
 /**
- * Backend runtime factory (Option A).
+ * Backend runtime factory (Option A + remote Phase 3–5).
  *
  * Primary surfaces follow teammate contracts:
  * - schemes: schemes.ts (+ optional Kashif cache)
@@ -8,6 +8,8 @@
  * - jordanApprovals: src/lib/approval/*
  * - liveRetrieval: Kashif Edge Function wrapper
  * - admin: Prerna query helpers
+ * - discovery: Phase 3 official-source discovery (additive; does NOT replace
+ *   Kashif live-scheme-retrieval or schemes.ts SoT)
  *
  * Legacy Phase 1/2 ProfileService + UUID ApplicationRecord services remain
  * as compatibility adapters only — do not force other workstreams onto them.
@@ -58,6 +60,11 @@ import {
 } from './liveRetrievalGateway'
 import { createAdminApplicationQueries, type AdminApplicationQueries } from './adminApplicationQueries'
 import { createSchemeCatalogService, type SchemeCatalogService } from './schemeCatalogService'
+import { createDataGovInAdapter } from './officialSource/dataGovInAdapter'
+import { createOfficialSchemeDiscoveryService } from './officialSource/officialSchemeDiscoveryService'
+import { createRetrievalOrchestrator } from './officialSource/orchestrator'
+import { createSupabaseRetrievalAuditLogger } from './officialSource/supabaseRetrievalAuditLogger'
+import type { OfficialSchemeDiscoveryService } from './officialSource/officialSchemeDiscoveryService'
 
 export type BackendMode = 'auto' | 'memory' | 'supabase'
 
@@ -86,6 +93,32 @@ export interface BackendServices {
   /** @deprecated use aditaApplications + admin */
   applicationStatus: ApplicationStatusService
   supabaseConfigured: boolean
+  /**
+   * Phase 3 — official government-source discovery (data.gov.in etc.),
+   * additive to schemeCatalog / schemes. Does not replace Kashif's
+   * live-scheme-retrieval Edge Function or schemes.ts as SoT.
+   */
+  discovery?: OfficialSchemeDiscoveryService
+}
+
+/**
+ * One process-wide orchestrator so source health/cache survive across
+ * createBackendServices() calls. The audit sink (when a Supabase client is
+ * available on first construction) is fixed for the process lifetime —
+ * acceptable for a prototype; revisit if callers need it swapped at runtime.
+ */
+let sharedDiscovery: OfficialSchemeDiscoveryService | null = null
+
+function getSharedDiscovery(
+  fixture: SchemeRegistry,
+  client?: LokPulseSupabaseClient | null,
+): OfficialSchemeDiscoveryService {
+  if (!sharedDiscovery) {
+    const onAttempt = client ? createSupabaseRetrievalAuditLogger(client) : undefined
+    const orchestrator = createRetrievalOrchestrator([createDataGovInAdapter()], { onAttempt })
+    sharedDiscovery = createOfficialSchemeDiscoveryService(orchestrator, fixture)
+  }
+  return sharedDiscovery
 }
 
 export interface CreateBackendServicesOptions {
@@ -140,6 +173,7 @@ function memoryBundle(supabaseConfigured: boolean): BackendServices {
       applications: memory.persistence,
       applicationStatus: memory.status,
       supabaseConfigured,
+      discovery: getSharedDiscovery(schemes),
     },
     null,
     null,
@@ -191,6 +225,7 @@ export function createBackendServices(opts: CreateBackendServicesOptions = {}): 
         applications: memory.persistence,
         applicationStatus: memory.status,
         supabaseConfigured: true,
+        discovery: getSharedDiscovery(fixture, client),
       },
       client,
       null,
@@ -207,6 +242,7 @@ export function createBackendServices(opts: CreateBackendServicesOptions = {}): 
       applications: apps.persistence,
       applicationStatus: apps.status,
       supabaseConfigured: true,
+      discovery: getSharedDiscovery(fixture, client),
     },
     client,
     client,

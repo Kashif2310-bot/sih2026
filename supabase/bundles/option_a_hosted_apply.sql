@@ -1,8 +1,7 @@
-﻿-- LokPulse Option A hosted apply bundle
--- Apply in Supabase SQL Editor (service role / dashboard).
--- Scheme SoT remains src/assistant/data/schemes.ts
--- public.schemes = Kashif optional cache only.
--- DO NOT apply archived Phase 1/2 UUID registry migrations.
+﻿-- LokPulse Option A + Phase 3-5 hosted apply bundle
+-- Scheme SoT: src/assistant/data/schemes.ts
+-- public.schemes = Kashif cache; official_discovery_retrievals = Phase 3 audit
+-- public.scheme_retrievals = Kashif live-scheme-retrieval audit ONLY
 
 
 -- ===== 0001_scheme_assistant_schema.sql =====
@@ -393,6 +392,65 @@ $$;
 
 revoke all on function public.verify_rls_enabled() from public;
 grant execute on function public.verify_rls_enabled() to service_role;
+
+
+-- ===== 202609170002_official_discovery_retrievals.sql =====
+
+-- Phase 3 official-source discovery AUDIT log (Option A reconciled).
+--
+-- IMPORTANT: Do NOT use public.scheme_retrievals here.
+-- That table belongs to Kashif's live-scheme-retrieval Edge Function
+-- (see 0001_scheme_assistant_schema.sql: source/query/status/result_count).
+--
+-- This table is a separate audit sink for Backend Phase 3 discovery adapters
+-- (officialSource/*). Discovery is additive enrichment â€” schemes.ts remains SoT.
+
+create table if not exists public.official_discovery_retrievals (
+  id uuid primary key default gen_random_uuid(),
+  source_adapter_id text not null,
+  pass_type text not null,
+  query_signature text not null,
+  ok boolean not null,
+  record_count integer not null default 0,
+  latency_ms integer not null default 0,
+  error_message text,
+  attempted_at timestamptz not null default now()
+);
+
+create index if not exists official_discovery_retrievals_adapter_idx
+  on public.official_discovery_retrievals (source_adapter_id, attempted_at desc);
+create index if not exists official_discovery_retrievals_attempted_at_idx
+  on public.official_discovery_retrievals (attempted_at desc);
+
+alter table public.official_discovery_retrievals enable row level security;
+
+-- Service-role writes only (no is_admin() â€” that helper lived in archived Phase 1/2 RLS).
+-- Demo honesty: allow anon read of operational diagnostics; never invent secrets.
+drop policy if exists official_discovery_retrievals_public_read on public.official_discovery_retrievals;
+create policy official_discovery_retrievals_public_read
+  on public.official_discovery_retrievals for select using (true);
+
+comment on table public.official_discovery_retrievals is
+  'Audit log for Backend Phase 3 officialSchemeDiscovery adapters. Separate from Kashif scheme_retrievals used by live-scheme-retrieval.';
+
+
+-- ===== 202609170003_application_submission.sql =====
+
+-- Phase 5 â€” application submission columns (Option A reconciled).
+-- Additive on Adita applications table (application_id text PK).
+-- Does not restore UUID ApplicationRecord as the identity model.
+
+alter table public.applications
+  add column if not exists government_reference_id text;
+
+alter table public.applications
+  add column if not exists submission_idempotency_key text;
+
+-- Lets legacy UUID ApplicationPersistenceService.submit() use an atomic
+-- null-check guard when that compat path is wired to Supabase.
+create index if not exists applications_submission_idempotency_key_idx
+  on public.applications (submission_idempotency_key)
+  where submission_idempotency_key is not null;
 
 
 -- ===== scheme_cache_v0.sql =====
