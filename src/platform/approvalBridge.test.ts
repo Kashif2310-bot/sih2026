@@ -8,7 +8,8 @@ import {
   snapshotFromApplication,
   submitApprovalSignature,
 } from './approvalBridge'
-import { createApplication, getApplication, newApplicationId } from './store'
+import { createApplication, getApplication } from './store'
+import { newApplicationId } from '../apply/application'
 import type { Application } from './types'
 
 function makeApp(total: number): Application {
@@ -75,6 +76,7 @@ describe('approvalBridge', () => {
     expect(view.quorum.required).toBe(2)
     expect(view.allocation.reviewers.length).toBe(3)
     expect(view.simulatedInfrastructure).toBe(true)
+    expect(view.applicationId).toMatch(/^LP-APP-/)
     expect(ensureApprovalCase(app).applicationHash).toBe(view.applicationHash)
     expect(peekApprovalCase(app.id)?.applicationId).toBe(app.id)
   })

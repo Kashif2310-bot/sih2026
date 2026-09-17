@@ -108,6 +108,11 @@ export function setStatus(
   return appendAudit(id, { actor, action: `status_changed:${status}`, detail })
 }
 
+/**
+ * Legacy helper for APP-DEMO seed fixtures and older tests.
+ * Runtime citizen / Apply IDs must come from `src/apply/application.ts`
+ * (`LP-APP-*`). Do not use this in ApplicationDraftContext or Apply.
+ */
 export function newApplicationId(): string {
   return `APP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 }

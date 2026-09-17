@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Radar } from 'lucide-react'
 import clsx from 'clsx'
 import { seedDemoApplicationsOnce } from '../platform/store'
+import { ingestAllTrackedApplications } from '../platform/trackedApplicationBridge'
 import { useAdminAuth } from './useAdminAuth'
 
 export function AdminShell() {
@@ -14,6 +15,7 @@ export function AdminShell() {
 
   useEffect(() => {
     seedDemoApplicationsOnce()
+    ingestAllTrackedApplications()
   }, [])
 
   if (!session && location.pathname !== '/admin/login') {

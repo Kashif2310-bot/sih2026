@@ -16,6 +16,7 @@ import { listApplySchemes } from '../apply/catalog'
 import { consentTextFor } from '../apply/channels'
 import { loadHandoff, loadTrackedApplications, saveHandoff, saveTrackedApplication } from '../apply/store'
 import { newApplicationId } from '../apply/application'
+import { ingestTrackedApplication } from '../platform/trackedApplicationBridge'
 import type { ConversationPayload, DocumentDeclaration, FilingChannel, MappedField, TrackedApplication } from '../apply/types'
 import { prepareApplication, submitApplication } from '../apply/workflow'
 import { useApp } from '../state/useApp'
@@ -89,6 +90,7 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
       })
       if (result.outcome !== 'consent_required' && result.outcome !== 'blocked_by_validation') {
         saveTrackedApplication(result)
+        ingestTrackedApplication(result)
       }
       navigate(`/apply/track/${encodeURIComponent(result.trackingId)}`, { state: { application: result } })
     } catch (e) {

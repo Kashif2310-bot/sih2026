@@ -141,6 +141,7 @@ describe('submitApplication — honesty contract', () => {
     expect(result.outcome).toBe('assisted_packet_ready')
     expect(result.filedWithGovernment).toBe(false)
     expect(result.honestLabel).toMatch(/not filed with government/i)
+    expect(result.applicationId).toMatch(/^LP-APP-/)
   })
 
   it('government_api without config fails honestly — no fake success', async () => {

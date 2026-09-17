@@ -95,6 +95,7 @@ describe('platform/store', () => {
     seedDemoApplicationsOnce()
     const countAfterFirstSeed = listApplications().length
     expect(countAfterFirstSeed).toBeGreaterThan(0)
+    expect(listApplications().some((a) => a.id === 'APP-DEMO-0001')).toBe(true)
     seedDemoApplicationsOnce()
     expect(listApplications().length).toBe(countAfterFirstSeed)
   })
