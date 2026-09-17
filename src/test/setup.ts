@@ -1,1 +1,3 @@
-// Vitest setup — pure unit tests run in node environment.
+import { loadEnvLocal } from './loadEnvLocal'
+
+loadEnvLocal()

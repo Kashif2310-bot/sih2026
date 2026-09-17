@@ -16,6 +16,8 @@ dist-ssr
 !.env.example
 test-results
 playwright-report
+supabase/.temp
+supabase/.branches
 
 # Editor directories and files
 .vscode/*
