@@ -3,21 +3,33 @@ import { buildSchemePlan } from '../lib/finance'
 import { computeLokScore, type EntrepreneurProfile, type WeatherSignal } from '../lib/lokScore'
 import { fetchMandiSignal } from '../lib/mandi'
 import { fetchWeather, fetchWeekTemps, unavailableWeather } from '../lib/weather'
-import type { Verifier } from '../lib/multisig'
 import { resolveCuratedVillage, resolveLiveLocation, type ResolvedLocation } from '../lib/resolveLocation'
 import { buildWorkingCapital, type WorkingCapitalPlan } from '../lib/workingCapital'
 import { AppCtx, type AppState } from './app-state'
 import { REACH_KM } from '../lib/config'
 
-// ethers (via multisig.ts) is real ECDSA crypto and not cheap to parse/execute,
-// so it's dynamically imported on first scan rather than bundled into the
-// eagerly-loaded app shell (landing page never touches signatures at all).
-// Cached so repeated scans don't re-trigger the network request.
-let multisigModulePromise: Promise<typeof import('../lib/multisig')> | null = null
-function loadMultisig() {
-  if (!multisigModulePromise) multisigModulePromise = import('../lib/multisig')
-  return multisigModulePromise
+// The approval layer pulls in ethers (real ECDSA) and is not cheap to
+// parse/execute, so it is dynamically imported on first scan rather than
+// bundled into the eagerly-loaded app shell. The UI only ever touches the
+// approval *service* — never multisig internals.
+let approvalModulePromise: Promise<{
+  service: typeof import('../lib/approval/service')
+  contracts: typeof import('../lib/approval/contracts')
+}> | null = null
+
+function loadApproval() {
+  if (!approvalModulePromise) {
+    approvalModulePromise = Promise.all([
+      import('../lib/approval/service'),
+      import('../lib/approval/contracts'),
+    ]).then(([service, contracts]) => ({ service, contracts }))
+  }
+  return approvalModulePromise
 }
+
+type ApprovalService = ReturnType<
+  Awaited<ReturnType<typeof loadApproval>>['service']['createApprovalService']
+>
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<EntrepreneurProfile | null>(null)
@@ -31,26 +43,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errorKn, setErrorKn] = useState<string | null>(null)
-  const [attestation, setAttestation] = useState<AppState['attestation']>(null)
-  const [signatures, setSignatures] = useState<AppState['signatures']>([])
+  const [approvalCase, setApprovalCase] = useState<AppState['approvalCase']>(null)
   const [escrowReleased, setEscrowReleased] = useState(false)
-  const [verifiers, setVerifiers] = useState<Verifier[]>([])
-  const multisigRef = useRef<Awaited<ReturnType<typeof loadMultisig>> | null>(null)
+  const serviceRef = useRef<ApprovalService | null>(null)
+  const applicationIdRef = useRef<string | null>(null)
 
   const setProfileAndScan = useCallback(async (p: EntrepreneurProfile) => {
     setLoading(true)
     setError(null)
     setErrorKn(null)
-    setSignatures([])
+    setApprovalCase(null)
     setEscrowReleased(false)
     const radiusKm = p.radiusKm || REACH_KM.default
 
     try {
       let resolved: ResolvedLocation
-      // Demo Mode is a presenter safety switch: even if locationMode somehow
-      // ended up 'live' (shouldn't happen — the UI locks it to curated),
-      // never attempt a live call once it's on. Zero network calls, seeded
-      // villages only.
       if (p.locationMode === 'live' && !p.demoMode) {
         const live = await resolveLiveLocation({
           query: p.liveQuery,
@@ -79,7 +86,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let w: WeatherSignal
       let wk: AppState['week'] = []
       if (p.demoMode) {
-        // Demo Mode: don't even attempt the call.
         w = unavailableWeather()
         wk = []
       } else {
@@ -89,9 +95,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             fetchWeekTemps(resolved.lat, resolved.lng),
           ])
         } catch {
-          // Covers both a real failure and the 2.5s abort timeout inside
-          // fetchWeather/fetchWeekTemps — either way, fail fast to the
-          // honest "unavailable" state rather than hanging.
           w = unavailableWeather()
           wk = []
         }
@@ -106,19 +109,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         plan: scheme,
       })
 
-      const multisig = await loadMultisig()
-      multisigRef.current = multisig
-      const pool = multisig.createVerifierPool()
-      const att = multisig.buildAttestation({
-        entrepreneurName: p.name,
+      const approval = await loadApproval()
+      // A fresh service per scan keeps one demo session isolated from the next.
+      const svc = approval.service.createApprovalService()
+      serviceRef.current = svc
+
+      // Adita owns Application/applicationId. Until that layer ships, the
+      // session mints a provisional id; the snapshot shape below is exactly
+      // what the approval boundary expects to receive from them.
+      const frozenAt = Date.now()
+      const applicationId = approval.contracts.provisionalApplicationId({
+        applicantRef: p.name,
         villageId: resolved.id,
-        lokScore: lok.total,
+        schemeId: scheme.schemeId,
+        frozenAt,
+      })
+      const view = svc.openApprovalCase({
+        applicationId,
+        applicantRef: p.name,
+        villageId: resolved.id,
         schemeId: scheme.schemeId,
         projectCost: scheme.projectCost,
         loanAmount: scheme.loanAmount,
-        quorumRequired: lok.quorumRequired,
-        quorumPool: lok.quorumPool,
+        lokScore: lok,
+        frozenAt,
       })
+      applicationIdRef.current = applicationId
 
       setProfile(p)
       setLocation(resolved)
@@ -128,8 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlan(scheme)
       setWorkingCapital(wc)
       setScore(lok)
-      setVerifiers(pool)
-      setAttestation(att)
+      setApprovalCase(view)
       return true
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed')
@@ -140,26 +155,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const signAs = useCallback(
-    async (verifierId: string) => {
-      if (!attestation || !score || !multisigRef.current) return
-      const { signAttestation, verifySignature } = multisigRef.current
-      const verifier = verifiers.find((v) => v.id === verifierId)
-      if (!verifier) return
-      if (signatures.some((s) => s.verifierId === verifierId)) return
-      const active = verifiers.slice(0, score.quorumPool)
-      if (!active.some((v) => v.id === verifierId)) return
-      const record = await signAttestation(verifier, attestation)
-      if (!verifySignature(attestation, record)) throw new Error('Signature invalid')
-      setSignatures((prev) => [...prev, record])
-    },
-    [attestation, score, signatures, verifiers],
-  )
+  const signAs = useCallback(async (reviewerId: string) => {
+    const svc = serviceRef.current
+    const applicationId = applicationIdRef.current
+    if (!svc || !applicationId) return
+    setApprovalCase(await svc.submitSignature(applicationId, reviewerId))
+  }, [])
 
   const releaseEscrow = useCallback(() => {
-    if (!score || !multisigRef.current || !multisigRef.current.quorumMet(score, signatures)) return
-    setEscrowReleased(true)
-  }, [score, signatures])
+    const svc = serviceRef.current
+    const applicationId = applicationIdRef.current
+    if (!svc || !applicationId) return
+    try {
+      svc.authorizeDisbursement(applicationId)
+      setEscrowReleased(true)
+    } finally {
+      setApprovalCase(svc.getApprovalCase(applicationId))
+    }
+  }, [])
 
   const reset = useCallback(() => {
     setProfile(null)
@@ -170,12 +183,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPlan(null)
     setWorkingCapital(null)
     setScore(null)
-    setAttestation(null)
-    setSignatures([])
-    setVerifiers([])
+    setApprovalCase(null)
     setEscrowReleased(false)
     setError(null)
     setErrorKn(null)
+    serviceRef.current = null
+    applicationIdRef.current = null
   }, [])
 
   const value: AppState = {
@@ -190,9 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     errorKn,
-    attestation,
-    signatures,
-    verifiers,
+    approvalCase,
     escrowReleased,
     setProfileAndScan,
     signAs,

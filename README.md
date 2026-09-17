@@ -3,6 +3,8 @@
 **Hyperlocal Opportunity Radar + NSFDC Financial Structuring for Rural Micro-Entrepreneurs**
 Ministry of Social Justice & Empowerment · NSFDC schemes · English + Kannada
 
+> **This branch (`ai-assistant-dev`)** additionally includes a prototype **AI Government Scheme Assistant** at `/assistant`, built on top of everything below without changing any existing route or logic. See [AI Government Scheme Assistant](#ai-government-scheme-assistant-prototype) further down for what it does and how to run it — it is not yet on `main`.
+
 LokPulse answers one question before money moves: *what should this person start, in this village, in the next 14 days, with this margin capital — and who must co-sign before disbursement?* It combines a hyperlocal opportunity scan (weather, mandi prices, festival demand, competitor density) with an exact NSFDC loan router and an adaptive multi-signature sanction flow, instead of being another eligibility-checklist chatbot.
 
 ## Run
@@ -20,6 +22,34 @@ npm run test:e2e   # Playwright end-to-end tests (needs a dev/preview server; se
 > **Presenting live? Flip on "Offline Demo Mode"** (top-right corner of `/scan`) if venue wifi is unreliable. It forces the seeded-village path and skips every live network call (weather, geocoding, competitor lookup) entirely, so the scan completes near-instantly with zero network dependency — a safe fallback while the live-lookup feature (real Nominatim geocoding + Overpass competitor data for any Indian town) stays available to show off when connectivity is good. Even with it off, every live call times out at 2.5s and falls through to an honest "unavailable" state rather than hanging.
 
 > **Playwright note:** `playwright.config.ts` targets port 5173 by default. If something else on your machine is already bound to that port, run `npm run dev -- --port <free-port>` and point a local Playwright config's `baseURL`/`webServer` at it instead.
+
+## AI Government Scheme Assistant (prototype)
+
+An experimental, conversational scheme-matching assistant at **`/assistant`**, added alongside everything above without changing any existing route, page, or calculation. A user describes their situation in plain English; the assistant extracts a structured profile, deterministically retrieves and scores real government schemes against it, and explains the results in a chat UI — it never scrapes or calls any live government system.
+
+**Prerequisites:** Node.js (see `package.json`'s tooling versions) and npm. No API keys, accounts, or `.env` file are required to run it — it works fully out of the box.
+
+```bash
+npm install
+npm run dev        # then open the printed URL and click "Assistant" in the nav, or go straight to /assistant
+```
+
+**Pipeline:** message → regex/keyword profile extraction (no AI call needed) → retrieval + filtering against the scheme knowledge base (`src/assistant/data/schemes.ts`) → a deterministic eligibility/ranking engine (`src/assistant/eligibility.ts`, `src/assistant/ranking.ts` — a match score and status like "possible match" is *computed*, never invented by a model) → an AI provider explains that evidence in plain language. Every AI reply is checked against the evidence (`src/assistant/ai/responseGuard.ts`) before being shown, rejecting anything that cites a URL or claims an outcome the evidence doesn't support.
+
+**Offline fallback (what you get by default):** no AI provider is configured out of the box, so every reply comes from a deterministic, template-based explanation of the same retrieved evidence — never a live model — and is clearly labelled **"Offline reasoning — no AI model used"** on every such message in the chat.
+
+**Testing the local LLM (Ollama) path — optional:**
+1. Install [Ollama](https://ollama.com) and run `ollama serve`.
+2. Pull a chat model: `ollama pull llama3.1` (the default model name the app looks for; see `OLLAMA_MODEL`/`OLLAMA_BASE_URL` in `src/assistant/aiConfig.ts` to point at a different local model or port).
+3. Reload `/assistant` — it auto-detects a reachable local Ollama server (a ~1.2s health check) and uses it instead of the offline fallback. Nothing leaves your machine, no key needed.
+
+A hosted-model provider abstraction exists (`src/assistant/ai/hostedProvider.ts`) but is intentionally disabled (`HOSTED_PROXY_URL` unset) — a hosted model must only ever be called through a backend proxy that holds its API key server-side, never directly from the browser, and no such proxy is included in this repo.
+
+**Important — this is reference data, not live retrieval:** the scheme knowledge base (`src/assistant/data/schemes.ts`) is a small, manually curated set of real, source-cited central/state schemes (NSFDC, PMEGP, PM Mudra Yojana, Stand-Up India, PM Vishwakarma, NBCFDC, Kudumbashree), each with its official source URL and a `lastVerifiedDate`. **It is not a live feed from any government system.** Every scheme shown in `/assistant` displays its source and a reminder to verify before applying. Do not add live web retrieval or scraping to this without a deliberate, separate decision — that architecture is intentionally deferred, not started.
+
+**EN/KN:** all assistant UI chrome (labels, buttons, statuses) follows the existing app's English/Kannada toggle. Scheme content itself (names, descriptions, eligibility text) is deliberately kept English-only to avoid mistranslating financial/legal specifics.
+
+**Tests:** `npm test` (138 tests) and `npm run test:e2e` (`e2e/assistant.spec.ts`, 8 tests) both cover the assistant alongside the existing LokPulse suite — see [Run](#run) above and the note on Playwright ports.
 
 ## Exact NSFDC figures implemented
 

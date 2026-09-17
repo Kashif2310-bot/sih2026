@@ -19,6 +19,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { to: '/finance', label: t('nav.finance') },
     { to: '/sanction', label: t('nav.sanction') },
     { to: '/export', label: t('nav.export') },
+    { to: '/assistant', label: t('nav.assistant') },
   ]
 
   return (
