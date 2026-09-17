@@ -3,54 +3,33 @@ import { buildSchemePlan } from '../lib/finance'
 import { computeLokScore, type EntrepreneurProfile, type WeatherSignal } from '../lib/lokScore'
 import { fetchMandiSignal } from '../lib/mandi'
 import { fetchWeather, fetchWeekTemps, unavailableWeather } from '../lib/weather'
-import type { Verifier } from '../lib/multisig'
 import { resolveCuratedVillage, resolveLiveLocation, type ResolvedLocation } from '../lib/resolveLocation'
 import { buildWorkingCapital, type WorkingCapitalPlan } from '../lib/workingCapital'
 import { AppCtx, type AppState } from './app-state'
 import { REACH_KM } from '../lib/config'
-import type { ApprovalSignature, AuditEvent } from '../lib/approval/contracts'
 
-// ethers (via multisig.ts / approval hashing) is real ECDSA crypto and not
-// cheap to parse/execute, so it's dynamically imported on first scan rather
-// than bundled into the eagerly-loaded app shell.
-let cryptoModulePromise: Promise<{
-  multisig: typeof import('../lib/multisig')
+// The approval layer pulls in ethers (real ECDSA) and is not cheap to
+// parse/execute, so it is dynamically imported on first scan rather than
+// bundled into the eagerly-loaded app shell. The UI only ever touches the
+// approval *service* — never multisig internals.
+let approvalModulePromise: Promise<{
+  service: typeof import('../lib/approval/service')
   contracts: typeof import('../lib/approval/contracts')
-  quorum: typeof import('../lib/approval/quorum')
-  allocate: typeof import('../lib/approval/allocate')
-  audit: typeof import('../lib/approval/audit')
-  disbursement: typeof import('../lib/approval/disbursement')
 }> | null = null
 
-function loadCrypto() {
-  if (!cryptoModulePromise) {
-    cryptoModulePromise = Promise.all([
-      import('../lib/multisig'),
+function loadApproval() {
+  if (!approvalModulePromise) {
+    approvalModulePromise = Promise.all([
+      import('../lib/approval/service'),
       import('../lib/approval/contracts'),
-      import('../lib/approval/quorum'),
-      import('../lib/approval/allocate'),
-      import('../lib/approval/audit'),
-      import('../lib/approval/disbursement'),
-    ]).then(([multisig, contracts, quorum, allocate, audit, disbursement]) => ({
-      multisig,
-      contracts,
-      quorum,
-      allocate,
-      audit,
-      disbursement,
-    }))
+    ]).then(([service, contracts]) => ({ service, contracts }))
   }
-  return cryptoModulePromise
+  return approvalModulePromise
 }
 
-function toApprovalSigs(records: AppState['signatures']): ApprovalSignature[] {
-  return records.map((s) => ({
-    reviewerId: s.verifierId,
-    address: s.address,
-    signature: s.signature,
-    signedAt: s.signedAt,
-  }))
-}
+type ApprovalService = ReturnType<
+  Awaited<ReturnType<typeof loadApproval>>['service']['createApprovalService']
+>
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<EntrepreneurProfile | null>(null)
@@ -64,28 +43,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errorKn, setErrorKn] = useState<string | null>(null)
-  const [attestation, setAttestation] = useState<AppState['attestation']>(null)
-  const [signatures, setSignatures] = useState<AppState['signatures']>([])
+  const [approvalCase, setApprovalCase] = useState<AppState['approvalCase']>(null)
   const [escrowReleased, setEscrowReleased] = useState(false)
-  const [verifiers, setVerifiers] = useState<Verifier[]>([])
-  const [applicationSnapshot, setApplicationSnapshot] = useState<AppState['applicationSnapshot']>(null)
-  const [approvalPolicy, setApprovalPolicy] = useState<AppState['approvalPolicy']>(null)
-  const [allocation, setAllocation] = useState<AppState['allocation']>(null)
-  const [authorizedPool, setAuthorizedPool] = useState<AppState['authorizedPool']>([])
-  const [auditLog, setAuditLog] = useState<AuditEvent[]>([])
-  const [disbursementAuth, setDisbursementAuth] = useState<AppState['disbursementAuth']>(null)
-  const [approvalReady, setApprovalReady] = useState(false)
-  const cryptoRef = useRef<Awaited<ReturnType<typeof loadCrypto>> | null>(null)
+  const serviceRef = useRef<ApprovalService | null>(null)
+  const applicationIdRef = useRef<string | null>(null)
 
   const setProfileAndScan = useCallback(async (p: EntrepreneurProfile) => {
     setLoading(true)
     setError(null)
     setErrorKn(null)
-    setSignatures([])
+    setApprovalCase(null)
     setEscrowReleased(false)
-    setDisbursementAuth(null)
-    setApprovalReady(false)
-    setAuditLog([])
     const radiusKm = p.radiusKm || REACH_KM.default
 
     try {
@@ -141,17 +109,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         plan: scheme,
       })
 
-      const crypto = await loadCrypto()
-      cryptoRef.current = crypto
-      const policy = crypto.quorum.freezeQuorumPolicy(lok)
+      const approval = await loadApproval()
+      // A fresh service per scan keeps one demo session isolated from the next.
+      const svc = approval.service.createApprovalService()
+      serviceRef.current = svc
+
+      // Adita owns Application/applicationId. Until that layer ships, the
+      // session mints a provisional id; the snapshot shape below is exactly
+      // what the approval boundary expects to receive from them.
       const frozenAt = Date.now()
-      const applicationId = crypto.contracts.provisionalApplicationId({
+      const applicationId = approval.contracts.provisionalApplicationId({
         applicantRef: p.name,
         villageId: resolved.id,
         schemeId: scheme.schemeId,
         frozenAt,
       })
-      const snapshot = {
+      const view = svc.openApprovalCase({
         applicationId,
         applicantRef: p.name,
         villageId: resolved.id,
@@ -160,30 +133,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loanAmount: scheme.loanAmount,
         lokScore: lok,
         frozenAt,
-      }
-      const snapshotDigest = crypto.contracts.hashApplicationSnapshot(snapshot)
-      const verifiersPool = crypto.multisig.createVerifierPool()
-      const pool = crypto.allocate.demoAuthorizedPool(verifiersPool)
-      const nextAllocation = crypto.allocate.allocateReviewers({
-        snapshot,
-        snapshotDigest,
-        policy,
-        pool,
-        allocatedAt: frozenAt,
       })
-      const att = crypto.multisig.buildAttestationFromSnapshot(snapshot)
-      let log = crypto.audit.appendAuditEvent([], {
-        applicationId,
-        eventType: 'application_opened',
-        timestamp: frozenAt,
-        dataRef: snapshotDigest,
-      })
-      log = crypto.audit.appendAuditEvent(log, {
-        applicationId,
-        eventType: 'reviewer_allocation_created',
-        timestamp: frozenAt,
-        dataRef: nextAllocation.allocationDigest,
-      })
+      applicationIdRef.current = applicationId
 
       setProfile(p)
       setLocation(resolved)
@@ -193,13 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlan(scheme)
       setWorkingCapital(wc)
       setScore(lok)
-      setVerifiers(verifiersPool)
-      setAttestation(att)
-      setApplicationSnapshot(snapshot)
-      setApprovalPolicy(policy)
-      setAllocation(nextAllocation)
-      setAuthorizedPool(pool)
-      setAuditLog(log)
+      setApprovalCase(view)
       return true
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed')
@@ -210,149 +155,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const signAs = useCallback(
-    async (verifierId: string) => {
-      if (!attestation || !applicationSnapshot || !approvalPolicy || !allocation || !cryptoRef.current) return
-      const crypto = cryptoRef.current
-      const verifier = verifiers.find((v) => v.id === verifierId)
-      if (!verifier) return
-      if (signatures.some((s) => s.verifierId === verifierId)) return
-
-      const requested = crypto.audit.appendAuditEvent(auditLog, {
-        applicationId: applicationSnapshot.applicationId,
-        eventType: 'signature_requested',
-        actorRef: verifierId,
-        dataRef: allocation.allocationDigest,
-      })
-
-      if (!allocation.allocatedReviewerIds.includes(verifierId)) {
-        setAuditLog(
-          crypto.audit.appendAuditEvent(requested, {
-            applicationId: applicationSnapshot.applicationId,
-            eventType: 'signature_rejected',
-            actorRef: verifierId,
-            dataRef: 'outside_allocated_set',
-          }),
-        )
-        throw new Error('Reviewer is not in the allocated set')
-      }
-
-      const record = await crypto.multisig.signAttestation(verifier, attestation)
-      const addressOk = crypto.multisig.verifySignatureForReviewer(
-        attestation,
-        record,
-        verifier.wallet.address,
-      )
-      if (!addressOk) {
-        setAuditLog(
-          crypto.audit.appendAuditEvent(requested, {
-            applicationId: applicationSnapshot.applicationId,
-            eventType: 'signature_rejected',
-            actorRef: verifierId,
-            dataRef: 'invalid_signature',
-          }),
-        )
-        throw new Error('Signature invalid')
-      }
-
-      const nextSigs = [...signatures, record]
-      const evaluation = crypto.quorum.evaluateApproval({
-        snapshot: applicationSnapshot,
-        snapshotDigest: attestation.reportHash,
-        policy: approvalPolicy,
-        allocation,
-        pool: authorizedPool,
-        attestation,
-        signatures: toApprovalSigs(nextSigs),
-      })
-      let log = crypto.audit.appendAuditEvent(requested, {
-        applicationId: applicationSnapshot.applicationId,
-        eventType: 'signature_collected',
-        actorRef: verifierId,
-        dataRef: record.signature.slice(0, 18),
-      })
-      log = crypto.audit.appendAuditEvent(log, {
-        applicationId: applicationSnapshot.applicationId,
-        eventType: 'quorum_evaluated',
-        dataRef: `${evaluation.uniqueValidCount}/${approvalPolicy.quorumRequired}`,
-      })
-      log = crypto.audit.appendAuditEvent(log, {
-        applicationId: applicationSnapshot.applicationId,
-        eventType: 'mentor_condition_evaluated',
-        dataRef: evaluation.mentorSatisfied ? 'mentor_ok' : 'mentor_pending',
-      })
-      if (evaluation.ok) {
-        log = crypto.audit.appendAuditEvent(log, {
-          applicationId: applicationSnapshot.applicationId,
-          eventType: 'quorum_reached',
-          dataRef: attestation.reportHash,
-        })
-      }
-      setSignatures(nextSigs)
-      setAuditLog(log)
-      setApprovalReady(evaluation.ok)
-    },
-    [
-      attestation,
-      applicationSnapshot,
-      approvalPolicy,
-      allocation,
-      authorizedPool,
-      auditLog,
-      signatures,
-      verifiers,
-    ],
-  )
+  const signAs = useCallback(async (reviewerId: string) => {
+    const svc = serviceRef.current
+    const applicationId = applicationIdRef.current
+    if (!svc || !applicationId) return
+    setApprovalCase(await svc.submitSignature(applicationId, reviewerId))
+  }, [])
 
   const releaseEscrow = useCallback(() => {
-    if (
-      !applicationSnapshot ||
-      !approvalPolicy ||
-      !allocation ||
-      !attestation ||
-      !cryptoRef.current
-    ) {
-      return
+    const svc = serviceRef.current
+    const applicationId = applicationIdRef.current
+    if (!svc || !applicationId) return
+    try {
+      svc.authorizeDisbursement(applicationId)
+      setEscrowReleased(true)
+    } finally {
+      setApprovalCase(svc.getApprovalCase(applicationId))
     }
-    const crypto = cryptoRef.current
-    const result = crypto.disbursement.authorizeDisbursement({
-      snapshot: applicationSnapshot,
-      snapshotDigest: attestation.reportHash,
-      policy: approvalPolicy,
-      allocation,
-      pool: authorizedPool,
-      attestation,
-      signatures: toApprovalSigs(signatures),
-      auditLog,
-    })
-    if (!result.ok) {
-      setAuditLog(
-        crypto.audit.appendAuditEvent(auditLog, {
-          applicationId: applicationSnapshot.applicationId,
-          eventType: 'disbursement_blocked',
-          dataRef: result.reasons[0],
-        }),
-      )
-      return
-    }
-    setDisbursementAuth(result.authorization)
-    setEscrowReleased(true)
-    setAuditLog(
-      crypto.audit.appendAuditEvent(auditLog, {
-        applicationId: applicationSnapshot.applicationId,
-        eventType: 'disbursement_authorized',
-        dataRef: result.authorization.authorizationDigest,
-      }),
-    )
-  }, [
-    applicationSnapshot,
-    approvalPolicy,
-    allocation,
-    attestation,
-    authorizedPool,
-    signatures,
-    auditLog,
-  ])
+  }, [])
 
   const reset = useCallback(() => {
     setProfile(null)
@@ -363,19 +183,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPlan(null)
     setWorkingCapital(null)
     setScore(null)
-    setAttestation(null)
-    setSignatures([])
-    setVerifiers([])
+    setApprovalCase(null)
     setEscrowReleased(false)
-    setApplicationSnapshot(null)
-    setApprovalPolicy(null)
-    setAllocation(null)
-    setAuthorizedPool([])
-    setAuditLog([])
-    setDisbursementAuth(null)
-    setApprovalReady(false)
     setError(null)
     setErrorKn(null)
+    serviceRef.current = null
+    applicationIdRef.current = null
   }, [])
 
   const value: AppState = {
@@ -390,17 +203,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     errorKn,
-    attestation,
-    signatures,
-    verifiers,
+    approvalCase,
     escrowReleased,
-    applicationSnapshot,
-    approvalPolicy,
-    allocation,
-    authorizedPool,
-    auditLog,
-    disbursementAuth,
-    approvalReady,
     setProfileAndScan,
     signAs,
     releaseEscrow,

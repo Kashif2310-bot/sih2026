@@ -20,6 +20,7 @@ export function reviewerFromVerifier(v: Verifier, authorized = true): Authorized
     address: v.wallet.address,
     role: v.roleKey,
     department: v.role,
+    departmentKn: v.roleKn,
     authorized,
     jurisdiction: 'KA-demo-fixture',
     displayName: v.name,

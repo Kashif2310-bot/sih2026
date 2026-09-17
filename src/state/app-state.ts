@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { AuditEvent, DisbursementAuthorization, ReviewerAllocation, ApplicationSnapshot, AuthorizedReviewer, QuorumPolicy } from '../lib/approval/contracts'
+import type { ApprovalCaseView } from '../lib/approval/views'
 import type { SchemePlan } from '../lib/finance'
 import type {
   EntrepreneurProfile,
@@ -7,7 +7,6 @@ import type {
   MandiSignal,
   WeatherSignal,
 } from '../lib/lokScore'
-import type { Attestation, SignatureRecord, Verifier } from '../lib/multisig'
 import type { ResolvedLocation } from '../lib/resolveLocation'
 import type { WorkingCapitalPlan } from '../lib/workingCapital'
 
@@ -23,19 +22,11 @@ export interface AppState {
   loading: boolean
   error: string | null
   errorKn: string | null
-  attestation: Attestation | null
-  signatures: SignatureRecord[]
-  verifiers: Verifier[]
+  /** Read-only approval projection — no multisig internals reach the UI. */
+  approvalCase: ApprovalCaseView | null
   escrowReleased: boolean
-  applicationSnapshot: ApplicationSnapshot | null
-  approvalPolicy: QuorumPolicy | null
-  allocation: ReviewerAllocation | null
-  authorizedPool: AuthorizedReviewer[]
-  auditLog: AuditEvent[]
-  disbursementAuth: DisbursementAuthorization | null
-  approvalReady: boolean
   setProfileAndScan: (p: EntrepreneurProfile) => Promise<boolean>
-  signAs: (verifierId: string) => Promise<void>
+  signAs: (reviewerId: string) => Promise<void>
   releaseEscrow: () => void
   reset: () => void
 }

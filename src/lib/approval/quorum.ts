@@ -69,6 +69,11 @@ export interface ApprovalEvaluation {
   validSignerIds: string[]
   mentorSatisfied: boolean
   uniqueValidCount: number
+  /**
+   * True when a reason is an integrity failure (tampering, wrong allocation,
+   * bad signature) rather than simply waiting for more signatures.
+   */
+  integrityFailed: boolean
 }
 
 function asRecord(s: ApprovalSignature): SignatureRecord {
@@ -96,7 +101,14 @@ export function evaluateApproval(input: {
     freezeQuorumPolicy(snapshot.lokScore)
   } catch (e) {
     reasons.push(e instanceof Error ? e.message : 'quorum policy mismatch')
-    return { ok: false, reasons, validSignerIds: [], mentorSatisfied: false, uniqueValidCount: 0 }
+    return {
+      ok: false,
+      reasons,
+      validSignerIds: [],
+      mentorSatisfied: false,
+      uniqueValidCount: 0,
+      integrityFailed: true,
+    }
   }
 
   if (
@@ -211,5 +223,5 @@ export function evaluateApproval(input: {
   const integrityFailed = fatal.length > 0
   const ok = !integrityFailed && !waitingOnCount && !waitingOnMentor
 
-  return { ok, reasons, validSignerIds, mentorSatisfied, uniqueValidCount }
+  return { ok, reasons, validSignerIds, mentorSatisfied, uniqueValidCount, integrityFailed }
 }

@@ -41,6 +41,7 @@ export interface AuthorizedReviewer {
   address: string
   role: ReviewerRole
   department: string
+  departmentKn?: string
   authorized: boolean
   jurisdiction?: string
   displayName?: string
