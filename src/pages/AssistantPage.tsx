@@ -53,7 +53,7 @@ function VoiceControls() {
   } = useAssistant()
 
   if (!voiceAvailable) {
-    return <p className="text-xs text-ink/45">{t('assistant.voice.unavailable')}</p>
+    return null
   }
 
   const showInterrupt = canInterruptVoice(voiceActive, voiceAudioState)
@@ -171,9 +171,7 @@ function AssistantPageInner() {
         </div>
       </div>
 
-      <p className="rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2.5 text-xs text-[#6b5300]">
-        {t('assistant.knowledgeBaseNote')}
-      </p>
+      <p className="max-w-3xl text-xs text-ink/50">{t('assistant.knowledgeBaseNote')}</p>
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
         <div className="order-2 lg:order-1">
