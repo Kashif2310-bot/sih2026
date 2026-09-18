@@ -1,27 +1,36 @@
-import { NavLink, Link } from 'react-router-dom'
+import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Radar } from 'lucide-react'
 import clsx from 'clsx'
+import { citizenApplyNavPath } from '../apply/resumePath'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
+  const location = useLocation()
+  const applyHref = citizenApplyNavPath()
 
   const toggle = () => {
     void i18n.changeLanguage(kn ? 'en' : 'kn')
   }
 
   const links = [
-    { to: '/', label: t('nav.home') },
-    { to: '/apply', label: t('nav.apply') },
-    { to: '/scan', label: t('nav.scan') },
-    { to: '/pulse', label: t('nav.pulse') },
-    { to: '/report', label: t('nav.report') },
-    { to: '/finance', label: t('nav.finance') },
-    { to: '/sanction', label: t('nav.sanction') },
-    { to: '/export', label: t('nav.export') },
-    { to: '/assistant', label: t('nav.assistant') },
+    { to: '/', label: t('nav.home'), apply: false },
+    { to: applyHref, label: t('nav.apply'), apply: true },
+    { to: '/scan', label: t('nav.scan'), apply: false },
+    { to: '/pulse', label: t('nav.pulse'), apply: false },
+    { to: '/report', label: t('nav.report'), apply: false },
+    { to: '/finance', label: t('nav.finance'), apply: false },
+    { to: '/sanction', label: t('nav.sanction'), apply: false },
+    { to: '/export', label: t('nav.export'), apply: false },
+    { to: '/assistant', label: t('nav.assistant'), apply: false },
   ]
+
+  const isNavActive = (to: string, apply: boolean) => {
+    if (apply) return location.pathname.startsWith('/apply')
+    if (to === '/') return location.pathname === '/'
+    return location.pathname === to || location.pathname.startsWith(`${to}/`)
+  }
 
   return (
     <div className={clsx('min-h-screen', kn && 'kn')}>
@@ -40,15 +49,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <nav className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
               <NavLink
-                key={l.to}
+                key={l.label}
                 to={l.to}
-                className={({ isActive }) =>
+                className={() =>
                   clsx(
                     'rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                    isActive ? 'bg-forest text-white' : 'text-ink/70 hover:bg-mist hover:text-forest',
+                    isNavActive(l.to, l.apply)
+                      ? 'bg-forest text-white'
+                      : 'text-ink/70 hover:bg-mist hover:text-forest',
                   )
                 }
-                end={l.to === '/'}
               >
                 {l.label}
               </NavLink>
@@ -74,15 +84,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
           {links.map((l) => (
             <NavLink
-              key={l.to}
+              key={l.label}
               to={l.to}
-              className={({ isActive }) =>
+              className={() =>
                 clsx(
                   'shrink-0 rounded-full px-3 py-1 text-xs font-medium',
-                  isActive ? 'bg-forest text-white' : 'bg-white text-ink/70',
+                  isNavActive(l.to, l.apply) ? 'bg-forest text-white' : 'bg-white text-ink/70',
                 )
               }
-              end={l.to === '/'}
             >
               {l.label}
             </NavLink>
